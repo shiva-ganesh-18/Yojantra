@@ -20,6 +20,9 @@ export default function Documents() {
   const [selectedTypeForUpload, setSelectedTypeForUpload] = useState('');
   const [selectedSchemeId, setSelectedSchemeId] = useState('');
   const [autoFillSuccess, setAutoFillSuccess] = useState(null);
+  const [autoFillError, setAutoFillError] = useState(null);
+  const [autoFillLoading, setAutoFillLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Fetch schemes list for dynamic scheme checklist selector
   const { data: schemesData } = useQuery('schemes_dropdown', async () => {
@@ -51,6 +54,8 @@ export default function Documents() {
   };
 
   const handle1ClickAutoFill = async () => {
+    setAutoFillLoading(true);
+    setAutoFillError(null);
     try {
       const res = await documentService.autoFillProfile();
       setAutoFillSuccess(res.message);
@@ -58,14 +63,26 @@ export default function Documents() {
       setTimeout(() => setAutoFillSuccess(null), 5000);
     } catch (e) {
       console.error(e);
+      setAutoFillError(e?.message || 'Auto-fill failed. Please try again.');
+      setTimeout(() => setAutoFillError(null), 5000);
+    } finally {
+      setAutoFillLoading(false);
     }
   };
 
   const handleDelete = async (docId) => {
     if (window.confirm("Are you sure you want to delete this document?")) {
-      await documentService.deleteDocument(docId);
-      queryClient.invalidateQueries('my_documents');
-      queryClient.invalidateQueries('document_readiness');
+      setDeletingId(docId);
+      try {
+        await documentService.deleteDocument(docId);
+        queryClient.invalidateQueries('my_documents');
+        queryClient.invalidateQueries('document_readiness');
+      } catch (e) {
+        console.error(e);
+        alert(e?.message || 'Failed to delete document. Please try again.');
+      } finally {
+        setDeletingId(null);
+      }
     }
   };
 
@@ -249,11 +266,15 @@ export default function Documents() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handle1ClickAutoFill}
-                disabled={uploadedDocs.length === 0}
+                disabled={uploadedDocs.length === 0 || autoFillLoading}
                 className="px-4 py-2 rounded-xl bg-gov-saffron-50 hover:bg-gov-saffron-100 text-gov-saffron-800 text-xs font-bold transition-all flex items-center gap-1.5 border border-gov-saffron-200 disabled:opacity-50"
               >
-                <Sparkles size={14} className="text-gov-saffron-600" />
-                <span>{t('docs_auto_fill', 'Auto-Fill Profile from OCR')}</span>
+                {autoFillLoading ? (
+                  <span className="w-3.5 h-3.5 border-2 border-gov-saffron-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Sparkles size={14} className="text-gov-saffron-600" />
+                )}
+                <span>{autoFillLoading ? 'Processing...' : t('docs_auto_fill', 'Auto-Fill Profile from OCR')}</span>
               </button>
 
               <button
@@ -270,6 +291,12 @@ export default function Documents() {
             <div className="mt-3 p-3 bg-gov-emerald-50 border border-gov-emerald-200 rounded-xl text-xs font-bold text-gov-emerald-800 flex items-center gap-2">
               <CheckCircle size={16} />
               <span>{autoFillSuccess}</span>
+            </div>
+          )}
+          {autoFillError && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
+              <AlertTriangle size={16} />
+              <span>{autoFillError}</span>
             </div>
           )}
         </div>
@@ -367,10 +394,15 @@ export default function Documents() {
 
                   <button
                     onClick={() => handleDelete(doc.id)}
+                    disabled={deletingId === doc.id}
                     aria-label="Delete document"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                   >
-                    <Trash2 size={16} />
+                    {deletingId === doc.id ? (
+                      <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
                   </button>
                 </div>
               </div>

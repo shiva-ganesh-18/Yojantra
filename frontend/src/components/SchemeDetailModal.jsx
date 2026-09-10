@@ -86,6 +86,22 @@ export default function SchemeDetailModal({
   const [simLoading, setSimLoading] = useState(false);
   const [simError, setSimError] = useState(null);
   const [showScheduleTable, setShowScheduleTable] = useState(false);
+  const applyTimeoutRef = React.useRef(null);
+
+  // Escape key to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (applyTimeoutRef.current) clearTimeout(applyTimeoutRef.current);
+    };
+  }, []);
 
   // Scheme statutory loan limits
   const maxLimit = scheme.max_loan_amount_inr || scheme.max_benefit_inr || null;
@@ -169,7 +185,7 @@ export default function SchemeDetailModal({
       try {
         await onApply(scheme.id || scheme.scheme_id);
         setApplySuccess(true);
-        setTimeout(() => {
+        applyTimeoutRef.current = setTimeout(() => {
           setApplySuccess(false);
           onClose();
           navigate('/applications');
@@ -189,7 +205,10 @@ export default function SchemeDetailModal({
     : ['Aadhaar Card', 'PAN Card', 'Bank Passbook / 6-Month Statement', 'UDYAM Registration Certificate', 'Passport Photograph'];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gov-navy-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 sm:py-8 animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 overflow-y-auto bg-gov-navy-950/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 sm:py-6 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div 
         className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-gov-navy-900"
         onClick={(e) => e.stopPropagation()}
@@ -780,7 +799,7 @@ export default function SchemeDetailModal({
 
             {scheme.official_url && (
               <a 
-                href={scheme.official_url} 
+                href={scheme.official_url.startsWith('http') ? scheme.official_url : `https://${scheme.official_url}`}
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="p-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 text-xs font-medium"

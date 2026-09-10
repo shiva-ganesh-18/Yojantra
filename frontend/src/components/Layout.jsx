@@ -63,7 +63,8 @@ export default function Layout({ children }) {
     { path: '/', icon: Home, label: t('nav_dashboard', 'Home') },
     { path: '/schemes', icon: Search, label: t('nav_find_schemes', 'Schemes') },
     { path: '/matches', icon: Sparkles, label: t('nav_matches', 'Matches') },
-    { path: '/csc', icon: MapPin, label: t('nav_csc_locator', 'CSC') },
+    { path: '/documents', icon: FolderUp, label: t('nav_documents', 'Documents') },
+    { path: '/applications', icon: FileText, label: t('nav_applications', 'Applications') },
     { path: '/chat', icon: MessageSquare, label: t('nav_ai_chat', 'AI Chat') },
   ];
 
@@ -74,6 +75,8 @@ export default function Layout({ children }) {
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/';
+    // Use exact match for short paths to avoid /csc matching /csc-locator
+    if (path.length <= 5) return location.pathname === path;
     return location.pathname.startsWith(path);
   };
 
@@ -438,6 +441,76 @@ export default function Layout({ children }) {
                     </Link>
                   );
                 })}
+              </div>
+
+              {/* AI Assistance Section */}
+              <div className="pt-3 mt-3 border-t border-slate-100 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3">
+                  {t('nav_ai_assistance', 'AI Assistance')}
+                </span>
+                {assistanceNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.path);
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-xl text-xs font-semibold focus-visible:ring-2 focus-visible:ring-orange-500 ${
+                        active ? 'bg-slate-950 text-white' : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Icon size={16} className={active ? 'text-orange-400' : 'text-slate-400'} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Admin & Partner Section */}
+              {isOfficerOrAdmin && (
+                <div className="pt-3 mt-3 border-t border-slate-100 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 flex items-center justify-between">
+                    <span>{user?.role === 'partner_officer' ? t('nav_partner_queue', 'Partner Desk') : user?.role === 'nodal_officer' ? t('nav_nodal_queue', 'Nodal Desk') : t('nav_admin_desk', 'Administration')}</span>
+                    <span className="text-[9px] px-1 bg-slate-200 text-slate-700 rounded font-bold">Gov</span>
+                  </span>
+                  <Link
+                    to="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-xl text-xs font-semibold focus-visible:ring-2 focus-visible:ring-orange-500 ${
+                      isActive('/admin')
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <ShieldCheck size={16} className="text-orange-400" />
+                    <span>{user?.role === 'partner_officer' ? t('nav_partner_queue', 'Partner Queue') : user?.role === 'nodal_officer' ? t('nav_nodal_queue', 'Nodal Queue') : t('nav_admin_desk', 'Admin & Partner Desk')}</span>
+                  </Link>
+                </div>
+              )}
+
+              {/* Location Hierarchy Trigger Card */}
+              <div className="pt-3 mt-3 border-t border-slate-100">
+                <div className="p-3 bg-gradient-to-br from-slate-50 to-orange-50/40 border border-slate-200/80 rounded-2xl">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                      <span>🇮🇳</span> {t('nav_india_navigator', 'India Navigator')}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mb-2 leading-relaxed">
+                    {t('nav_india_navigator_sub', 'State, District, City & College hierarchy selector.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocationCommandOpen(true);
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full py-1.5 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:border-orange-400 hover:text-orange-600 transition-colors shadow-2xs focus-visible:ring-2 focus-visible:ring-orange-500"
+                  >
+                    {t('nav_open_navigator', 'Open Navigator')}
+                  </button>
+                </div>
               </div>
             </div>
 

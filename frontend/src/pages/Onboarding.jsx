@@ -97,6 +97,14 @@ export default function Onboarding() {
       setError('Please enter your full legal name');
       return;
     }
+    if (currentStep === 0 && !form.state) {
+      setError('Please select your state');
+      return;
+    }
+    if (currentStep === 0 && !form.district) {
+      setError('Please select your district');
+      return;
+    }
     if (currentStep === 1 && !form.business_name.trim()) {
       setError('Please enter your business or project name');
       return;

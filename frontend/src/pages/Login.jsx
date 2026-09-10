@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuth';
 import { authService } from '../services';
 import { signInWithGooglePopup } from '../config/firebase';
@@ -33,6 +33,7 @@ function GoogleIcon({ className = "w-5 h-5" }) {
 
 export default function Login() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleLoadingState, setGoogleLoadingState] = useState(''); // 'Connecting to Google...' | 'Signing in...'
   const [error, setError] = useState('');
@@ -59,6 +60,7 @@ export default function Login() {
       if (data.access_token) {
         setToken(data.access_token);
         setUser(data.user);
+        navigate(data.user?.onboarding_completed ? '/dashboard' : '/onboarding');
       }
     } catch (err) {
       const serverMessage = err.details?.detail || err.response?.data?.detail;

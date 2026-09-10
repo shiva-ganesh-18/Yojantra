@@ -101,11 +101,18 @@ export default function SearchCommand({ isOpen, onClose }) {
           {query && (
             <button 
               onClick={() => setQuery('')}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              className="p-2.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex items-center justify-center"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           )}
+          <button 
+            onClick={onClose}
+            className="p-2.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex items-center justify-center lg:hidden"
+            aria-label="Close search"
+          >
+            <X size={18} />
+          </button>
           <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[11px] font-mono text-slate-400 bg-slate-100 border border-slate-200 rounded">
             ESC
           </kbd>

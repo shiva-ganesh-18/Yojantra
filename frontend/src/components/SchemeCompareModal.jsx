@@ -13,9 +13,12 @@ export default function SchemeCompareModal({
   if (!isOpen || !compareData || !compareData.schemes || compareData.schemes.length === 0) return null;
 
   const { schemes, common_criteria, differing_features, recommendation_summary } = compareData;
+  const gridCols = schemes.length <= 2 ? 'md:grid-cols-2' : 'md:grid-cols-3';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gov-navy-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 sm:py-8 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-gov-navy-950/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 sm:py-6 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div 
         className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden text-gov-navy-900"
         onClick={(e) => e.stopPropagation()}
@@ -64,7 +67,7 @@ export default function SchemeCompareModal({
           )}
 
           {/* Scheme Cards Grid */}
-          <div className={`grid grid-cols-1 md:grid-cols-${Math.min(schemes.length, 3)} gap-4`}>
+          <div className={`grid grid-cols-1 ${gridCols} gap-4`}>
             {schemes.map((item) => {
               const m = item.match_data || {};
               const s = item.scheme || {};
@@ -142,10 +145,10 @@ export default function SchemeCompareModal({
                     </div>
                   </div>
 
-                  <button
+                    <button
                     onClick={() => {
                       onClose();
-                      if (onSelectScheme) onSelectScheme(m || s);
+                      if (onSelectScheme) onSelectScheme(Object.keys(m).length > 0 ? m : s);
                     }}
                     className="w-full py-2.5 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5"
                   >
@@ -177,7 +180,7 @@ export default function SchemeCompareModal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {differing_features.map((feat, idx) => (
+                  {differing_features && differing_features.map((feat, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/50">
                       <td className="p-3 sm:p-4 font-semibold text-slate-700 bg-slate-50/30">
                         {feat.feature}

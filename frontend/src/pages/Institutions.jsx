@@ -667,24 +667,23 @@ export default function Institutions() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">State *</label>
-                    <input
-                      type="text"
-                      required
-                      value={requestForm.state || state}
-                      onChange={(e) => setRequestForm({ ...requestForm, state: e.target.value })}
-                      placeholder="e.g., Maharashtra"
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    <StateSelector
+                      selectedState={requestForm.state || state}
+                      onSelectState={(val) => setRequestForm({ ...requestForm, state: val, district: '', city: '' })}
+                      label="State / Union Territory"
+                      required={true}
+                      className="w-full"
                     />
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">District *</label>
-                    <input
-                      type="text"
-                      required
-                      value={requestForm.district || district}
-                      onChange={(e) => setRequestForm({ ...requestForm, district: e.target.value })}
-                      placeholder="e.g., Pune"
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                    <DistrictSelector
+                      state={requestForm.state || state}
+                      selectedDistrict={requestForm.district || district}
+                      onSelectDistrict={(val) => setRequestForm({ ...requestForm, district: val, city: '' })}
+                      label="District"
+                      required={true}
+                      className="w-full"
                     />
                   </div>
                 </div>
@@ -693,12 +692,13 @@ export default function Institutions() {
                   <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
                     City / Town
                   </label>
-                  <input
-                    type="text"
-                    value={requestForm.city || city}
-                    onChange={(e) => setRequestForm({ ...requestForm, city: e.target.value })}
-                    placeholder="e.g., Shivaji Nagar"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+                  <CitySelector
+                    state={requestForm.state || state}
+                    district={requestForm.district || district}
+                    selectedCity={requestForm.city || city}
+                    onSelectCity={(val) => setRequestForm({ ...requestForm, city: val })}
+                    label="City / Town"
+                    className="w-full"
                   />
                 </div>
 

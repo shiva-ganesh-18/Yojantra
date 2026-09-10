@@ -41,8 +41,10 @@ export default function CSCLocator() {
   };
 
   useEffect(() => {
-    fetchCentersByDistrict(initialDistrict);
-  }, []);
+    if (user) {
+      fetchCentersByDistrict(user.district || user.city || '');
+    }
+  }, [user]);
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
@@ -76,7 +78,7 @@ export default function CSCLocator() {
 
   const openGoogleMaps = (lat, lng, name, address) => {
     if (lat && lng) {
-      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
     } else {
       const query = encodeURIComponent(`${name} ${address || ''} Common Service Center India`);
       window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');

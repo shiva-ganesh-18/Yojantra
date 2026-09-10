@@ -32,6 +32,7 @@ export default function Profile() {
   const [linkingGoogle, setLinkingGoogle] = useState(false);
   const [linkMessage, setLinkMessage] = useState(null);
   const [saveError, setSaveError] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Fetch business info
   const { data: business, isLoading: loadingBusiness } = useQuery('user_business', () =>
@@ -94,6 +95,25 @@ export default function Profile() {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setSaveError('');
+    setSaveSuccess(false);
+
+    // Client-side validation
+    if (!editForm.state) {
+      setSaveError('State is required.');
+      return;
+    }
+    if (!editForm.district) {
+      setSaveError('District is required.');
+      return;
+    }
+    if (editForm.phone) {
+      const digits = editForm.phone.replace(/\D/g, '').slice(-10);
+      if (!/^[6-9]\d{9}$/.test(digits)) {
+        setSaveError('Enter a valid 10-digit Indian mobile number.');
+        return;
+      }
+    }
+
     try {
       const res = await api().put('/users/me', {
         full_name: editForm.full_name,
@@ -128,6 +148,8 @@ export default function Profile() {
 
       queryClient.invalidateQueries('user_business');
       setIsEditing(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       const serverDetail = err.response?.data?.detail;
       let errorMsg = 'Failed to update profile. Please verify your details.';

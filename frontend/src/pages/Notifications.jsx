@@ -118,7 +118,7 @@ export default function Notifications() {
         {categories.map(c => {
           const count = c.id === 'all' 
             ? notifications.length 
-            : notifications.filter(n => (n.title + ' ' + (n.body || '')).toLowerCase().includes(c.keyword)).length;
+            : notifications.filter(n => (n.title + ' ' + (n.body || '') + ' ' + (n.type || '')).toLowerCase().includes(c.keyword)).length;
 
           return (
             <button

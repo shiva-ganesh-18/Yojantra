@@ -420,13 +420,13 @@ export default function Chat() {
             onClick={handleVoiceToggle}
             aria-label="Voice input"
             title="Voice input"
-            className={`p-2.5 rounded-xl transition-all ${
+            className={`p-3 rounded-xl transition-all min-h-[44px] min-w-[44px] flex items-center justify-center ${
               isRecording 
                 ? 'bg-red-500 text-white animate-pulse' 
                 : 'text-slate-500 hover:text-gov-navy-950 hover:bg-slate-200/60'
             }`}
           >
-            {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+            {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
 
           <input
@@ -441,9 +441,9 @@ export default function Chat() {
             type="submit"
             disabled={!input.trim() || loading}
             aria-label="Send message"
-            className="p-2.5 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all"
+            className="p-3 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
-            <Send size={16} />
+            <Send size={18} />
           </button>
         </form>
 

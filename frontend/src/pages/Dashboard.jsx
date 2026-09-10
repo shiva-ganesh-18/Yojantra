@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from 'react-query';
+import { useQuery, useQueryClient } from 'react-query';
 import { useAuthStore } from '../hooks/useAuth';
 import { useLanguage } from '../hooks/useLanguage';
 import { Link, useNavigate } from 'react-router-dom';
@@ -15,25 +15,26 @@ export default function Dashboard() {
   const { api, user } = useAuthStore();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedScheme, setSelectedScheme] = useState(null);
 
-  // 1. Fetch recommended matches
-  const { data: matches = [], isLoading: loadingMatches } = useQuery('recommended', () => 
+  // 1. Fetch recommended matches — key matches Matches.jsx for cross-page invalidation
+  const { data: matches = [], isLoading: loadingMatches, error: errorMatches } = useQuery('all_matches', () => 
     api().get('/schemes/recommended').then(r => r.data || [])
   );
 
-  // 2. Fetch applications
-  const { data: applications = [], isLoading: loadingApps } = useQuery('applications', () =>
+  // 2. Fetch applications — key matches Applications.jsx for cross-page invalidation
+  const { data: applications = [], isLoading: loadingApps, error: errorApps } = useQuery('applications_list', () =>
     api().get('/applications').then(r => r.data || [])
   );
 
-  // 3. Fetch documents
-  const { data: documents = [], isLoading: loadingDocs } = useQuery('documents', () =>
+  // 3. Fetch documents — key matches Documents.jsx for cross-page invalidation
+  const { data: documents = [], isLoading: loadingDocs, error: errorDocs } = useQuery('my_documents', () =>
     api().get('/documents/my-documents').then(r => r.data || [])
   );
 
-  // 4. Fetch document readiness
-  const { data: docReadiness } = useQuery('docReadiness', () =>
+  // 4. Fetch document readiness — key matches Documents.jsx for cross-page invalidation
+  const { data: docReadiness } = useQuery('document_readiness', () =>
     api().get('/documents/readiness').then(r => r.data).catch(() => null)
   );
 
@@ -196,25 +197,34 @@ export default function Dashboard() {
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
             <span className="text-xs font-semibold text-slate-400">{t('dash_step_docs', '3. Documents')}</span>
             <div className="my-2">
-              {(() => {
-                const totalReq = docReadiness?.total_required ?? Math.max(3, documents.length);
-                const totalUp = docReadiness?.total_uploaded ?? documents.length;
-                const missingMandatory = docReadiness?.missing_mandatory_count ?? (totalUp >= 3 ? 0 : 3 - totalUp);
-                const isReady = docReadiness ? docReadiness.is_ready_to_apply : (missingMandatory === 0 && totalUp > 0);
-                return (
-                  <>
-                    <p className={`text-sm font-bold flex items-center gap-1 ${isReady ? 'text-gov-emerald-700' : 'text-amber-600'}`}>
-                      {isReady ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                      <span>{totalUp} / {totalReq} {t('docs_tab_all', 'Ready')}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {missingMandatory > 0 
-                        ? `${missingMandatory} mandatory missing`
-                        : t('docs_ocr_verified', 'OCR Format & Data Extraction')}
-                    </p>
-                  </>
-                );
-              })()}
+              {loadingDocs ? (
+                <p className="text-sm font-bold text-slate-400 flex items-center gap-1">
+                  <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+                  Loading...
+                </p>
+              ) : errorDocs ? (
+                <p className="text-sm font-bold text-red-600">Error loading</p>
+              ) : (
+                (() => {
+                  const totalReq = docReadiness?.total_required ?? Math.max(3, documents.length);
+                  const totalUp = docReadiness?.total_uploaded ?? documents.length;
+                  const missingMandatory = docReadiness?.missing_mandatory_count ?? (totalUp >= 3 ? 0 : 3 - totalUp);
+                  const isReady = docReadiness ? docReadiness.is_ready_to_apply : (missingMandatory === 0 && totalUp > 0);
+                  return (
+                    <>
+                      <p className={`text-sm font-bold flex items-center gap-1 ${isReady ? 'text-gov-emerald-700' : 'text-amber-600'}`}>
+                        {isReady ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                        <span>{totalUp} / {totalReq} {t('docs_tab_all', 'Ready')}</span>
+                      </p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {missingMandatory > 0 
+                          ? `${missingMandatory} mandatory missing`
+                          : t('docs_ocr_verified', 'OCR Format & Data Extraction')}
+                      </p>
+                    </>
+                  );
+                })()
+              )}
             </div>
             <Link to="/documents" className="text-[11px] font-bold text-gov-navy-800 hover:text-gov-saffron-700 flex items-center gap-0.5 mt-1">
               {(docReadiness?.missing_mandatory_count ?? 0) > 0 ? t('btn_upload', 'Upload Missing') : 'Manage Docs'} &rarr;
@@ -225,10 +235,21 @@ export default function Dashboard() {
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
             <span className="text-xs font-semibold text-slate-400">{t('dash_step_apps', '4. Applications')}</span>
             <div className="my-2">
-              <p className="text-sm font-bold text-gov-navy-950">
-                {activeAppsCount} {t('apps_status_submitted', 'In Progress')}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">{approvedCount} {t('apps_status_approved', 'Approved')}</p>
+              {loadingApps ? (
+                <p className="text-sm font-bold text-slate-400 flex items-center gap-1">
+                  <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+                  Loading...
+                </p>
+              ) : errorApps ? (
+                <p className="text-sm font-bold text-red-600">Error loading</p>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-gov-navy-950">
+                    {activeAppsCount} {t('apps_status_submitted', 'In Progress')}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{approvedCount} {t('apps_status_approved', 'Approved')}</p>
+                </>
+              )}
             </div>
             <Link to="/applications" className="text-[11px] font-bold text-gov-navy-800 hover:text-gov-saffron-700 flex items-center gap-0.5 mt-1">
               {t('nav_applications', 'View Tracking')} &rarr;
@@ -410,7 +431,9 @@ export default function Dashboard() {
           isOpen={!!selectedScheme}
           onClose={() => setSelectedScheme(null)}
           onApply={async (id) => {
-            await api().post('/applications', { scheme_id: id });
+            const res = await api().post('/applications', { scheme_id: id });
+            queryClient.invalidateQueries('applications_list');
+            return res.data;
           }}
         />
       )}

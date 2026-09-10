@@ -60,9 +60,11 @@ export default function Matches() {
     if (applyingSchemeId) return; // Prevent duplicate clicks
     setApplyingSchemeId(schemeId);
     setFeedbackToast(null);
+    let succeeded = false;
 
     try {
       await api().post('/applications', { scheme_id: schemeId });
+      succeeded = true;
       setFeedbackToast({
         type: 'success',
         message: 'Application submitted successfully.'
@@ -92,7 +94,11 @@ export default function Matches() {
         setFeedbackToast((prev) => (prev?.type === 'error' ? null : prev));
       }, 5000);
     } finally {
-      setApplyingSchemeId(null);
+      // On success, keep button disabled during navigation delay to prevent duplicate submits.
+      // On error, re-enable so user can retry.
+      if (!succeeded) {
+        setApplyingSchemeId(null);
+      }
     }
   };
 
@@ -156,7 +162,7 @@ export default function Matches() {
     { id: 'msme', label: t('matches_filter_msme', 'MSME Priority'), filterFn: (m) => (m.name + ' ' + (m.description || '')).toLowerCase().includes('msme') || (m.name || '').includes('PMEGP') || (m.name || '').includes('Mudra') },
   ];
 
-  const currentTab = filterTabs.find(t => t.id === activeFilter);
+  const currentTab = filterTabs.find(tab => tab.id === activeFilter);
   const filteredMatches = matches.filter(m => {
     if (!currentTab || !currentTab.filterFn) return true;
     return currentTab.filterFn(m);
@@ -476,7 +482,7 @@ export default function Matches() {
                         title="Select to compare side-by-side"
                       >
                         <Scale size={13} />
-                        <span>{isSelectedForCompare ? t('btn_compare', 'Compared') : t('btn_compare', 'Compare')}</span>
+                        <span>{isSelectedForCompare ? t('btn_compared', 'Compared') : t('btn_compare', 'Compare')}</span>
                       </button>
 
                       <button

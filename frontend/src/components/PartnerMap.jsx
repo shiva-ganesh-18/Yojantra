@@ -187,9 +187,9 @@ export default function PartnerMap({
         partner.state
       );
 
-      // Popup Content
+// Popup Content
       const popupHtml = `
-        <div class="p-2.5 text-slate-900 text-left max-w-xs font-sans">
+        <div class="p-2.5 text-slate-900 text-left max-w-[280px] font-sans">
           <div class="flex items-center justify-between gap-2 mb-1.5">
             <span style="background-color: ${theme.bg};" class="text-[9px] font-black px-2 py-0.5 rounded-full text-white">
               ${partner.institution_type || 'PSB'}
@@ -282,21 +282,21 @@ export default function PartnerMap({
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col text-left">
       {/* Map Control Bar */}
-      <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="p-1.5 rounded-lg bg-gov-navy-950 text-white font-black text-[10px] flex items-center gap-1">
             <Compass size={12} className="text-gov-saffron-400" />
             <span>Geographic Partner Locator</span>
           </span>
-          <span className="text-slate-600 font-semibold">
+          <span className="text-slate-600 font-semibold hidden sm:inline">
             {validPartners.length} Mapped Locations
             {centerDistrict && ` in ${centerDistrict}`}
             {centerState && `, ${centerState}`}
           </span>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold">
+        {/* Legend - simplified on mobile */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] font-bold">
           <span className="flex items-center gap-1 text-purple-700">
             <span className="w-2.5 h-2.5 rounded-full bg-purple-600" /> SCA
           </span>
@@ -317,30 +317,30 @@ export default function PartnerMap({
         </div>
 
         {/* Zoom & Reset Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleZoomIn}
             title="Zoom In"
             aria-label="Zoom In"
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-xs transition-colors"
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-xs transition-colors min-h-[44px] min-w-[44px]"
           >
-            <ZoomIn size={14} />
+            <ZoomIn size={16} />
           </button>
           <button
             onClick={handleZoomOut}
             title="Zoom Out"
             aria-label="Zoom Out"
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-xs transition-colors"
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-xs transition-colors min-h-[44px] min-w-[44px]"
           >
-            <ZoomOut size={14} />
+            <ZoomOut size={16} />
           </button>
           <button
             onClick={handleResetZoom}
             title="Fit to All Partners"
             aria-label="Fit to All Partners"
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-xs transition-colors flex items-center gap-1 text-[11px] font-bold"
+            className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-xs transition-colors flex items-center gap-1 text-[11px] font-bold min-h-[44px]"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={14} />
             <span className="hidden sm:inline">Fit View</span>
           </button>
         </div>
@@ -368,7 +368,7 @@ export default function PartnerMap({
         )}
 
         {/* Real-time Banking & Dispersal Disclosure Pill */}
-        <div className="absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-md bg-slate-950/85 backdrop-blur-md text-slate-300 text-[10px] p-2.5 rounded-xl border border-slate-800 shadow-lg flex items-start gap-2 z-20 pointer-events-none">
+        <div className="absolute bottom-3 left-3 right-3 sm:left-auto sm:right-3 sm:max-w-xs bg-slate-950/85 backdrop-blur-md text-slate-300 text-[10px] p-2.5 rounded-xl border border-slate-800 shadow-lg flex items-start gap-2 z-20 pointer-events-none">
           <Info size={14} className="text-amber-400 shrink-0 mt-0.5" />
           <p className="leading-tight">
             Fund availability and current quota are not verified in real time. Contact the partner to confirm current availability.
