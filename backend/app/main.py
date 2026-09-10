@@ -19,6 +19,26 @@ from app.routers import (
 settings = get_settings()
 
 
+# Strengthened Content-Security-Policy for a JSON API backend.
+# cdn.jsdelivr.net is allowlisted for scripts/styles ONLY so the FastAPI
+# Swagger/ReDoc developer docs (dev/test) keep rendering; no application
+# endpoint serves HTML/JS itself. No wildcard sources anywhere.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' https://cdn.jsdelivr.net; "
+    "style-src 'self' https://cdn.jsdelivr.net; "
+    "img-src 'self' data: https:; "
+    "font-src 'self' https:; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(self)"
+REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -29,12 +49,15 @@ async def lifespan(app: FastAPI):
     yield
 
 
+is_prod_boot = settings.ENVIRONMENT.lower() in ("production", "prod")
+
 app = FastAPI(
     title="Yojantra API",
     description="Yojantra - Your intelligent path to government schemes.",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    # API docs stay available for development/testing; disabled in production.
+    docs_url=None if is_prod_boot else "/docs",
+    redoc_url=None if is_prod_boot else "/redoc",
     lifespan=lifespan
 )
 
@@ -49,13 +72,41 @@ LOCAL_DEV_ORIGINS = [
     "http://localhost:5175",
     "http://127.0.0.1:5175",
 ]
+
+# Explicit safe request-header allowlist (replaces wildcard; credentials stay
+# enabled only against these explicit origins, never "*").
+SAFE_ALLOW_HEADERS = [
+    "Authorization",
+    "Content-Type",
+    "Accept",
+    "Origin",
+    "X-Requested-With",
+    "X-Firebase-AppCheck",
+    "X-Signature",
+    "X-Timestamp",
+]
+
+
+def _is_loopback_origin(origin: str) -> bool:
+    """True for localhost/loopback origins that must never be trusted in production."""
+    host = (origin or "").strip().lower().split("://", 1)[-1].split("/", 1)[0].split("@")[-1]
+    if host.startswith("["):
+        host = host.split("]", 1)[0] + "]"  # bracketed IPv6, drop port
+    else:
+        host = host.split(":")[0]  # drop port
+    return host in ("localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0") or host.endswith(".localhost")
+
+
 raw_origins = settings.CORS_ORIGINS.split(",") if settings.CORS_ORIGINS else []
 configured_origins = [origin.strip() for origin in raw_origins if origin.strip()]
 
-is_prod = settings.ENVIRONMENT.lower() in ("production", "prod")
+is_prod = is_prod_boot
 if is_prod:
-    # In production, allow strictly configured production origins
-    allowed_origins = configured_origins if configured_origins else ["https://schemematch-ai-complete.vercel.app"]
+    # In production, allow strictly configured production origins; loopback
+    # origins are stripped even if present in configuration.
+    allowed_origins = [o for o in configured_origins if not _is_loopback_origin(o)]
+    if not allowed_origins:
+        allowed_origins = ["https://schemematch-ai-complete.vercel.app"]
 else:
     # In non-production development, include local ports
     allowed_origins = list(dict.fromkeys(LOCAL_DEV_ORIGINS + configured_origins))
@@ -65,7 +116,7 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=SAFE_ALLOW_HEADERS,
     expose_headers=["X-Process-Time"],
 )
 
@@ -94,11 +145,11 @@ async def add_security_and_timing_headers(request: Request, call_next):
     response.headers["X-Process-Time"] = f"{process_time:.4f}s"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Referrer-Policy"] = REFERRER_POLICY
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(self)"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';"
+    response.headers["Permissions-Policy"] = PERMISSIONS_POLICY
+    response.headers["Content-Security-Policy"] = CONTENT_SECURITY_POLICY
     return response
 
 
@@ -117,10 +168,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         "Access-Control-Allow-Origin": cors_origin,
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Allow-Headers": ", ".join(SAFE_ALLOW_HEADERS),
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+        "Referrer-Policy": REFERRER_POLICY,
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "X-XSS-Protection": "1; mode=block",
+        "Permissions-Policy": PERMISSIONS_POLICY,
+        "Content-Security-Policy": CONTENT_SECURITY_POLICY,
     }
     return JSONResponse(
         status_code=500,

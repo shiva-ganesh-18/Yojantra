@@ -1,0 +1,68 @@
+# ============================================================================
+# Yojantra — LOCAL DEVELOPMENT overrides (auto-loaded by `docker compose up`).
+#
+# This file restores the local development workflow on top of the
+# production-safe base: host port mappings, source bind mounts, dev servers,
+# and dev-only default credentials. Production must NOT load this file:
+#   docker compose -f docker-compose.yml up -d
+#
+# The dev-only defaults below (e.g. `schemematch`) are for throwaway local
+# databases only and must never be used in production.
+# ============================================================================
+
+services:
+  db:
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-schemematch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-schemematch}
+      POSTGRES_DB: ${POSTGRES_DB:-schemematch}
+
+  neo4j:
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-schemematch}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-schemematch}
+
+  redis:
+    ports:
+      - "6379:6379"
+    # Local dev runs without auth; production (base file) requires REDIS_PASSWORD.
+    command: ["redis-server"]
+
+  backend:
+    ports:
+      - "8001:8001"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-true}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://schemematch:schemematch@db:5432/schemematch}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-schemematch}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+  frontend:
+    build:
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - PORT=3000
+      - VITE_API_URL=${VITE_API_URL:-http://127.0.0.1:8001}
+      - VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY:-}
+      - VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN:-}
+      - VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID:-}
+      - VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET:-}
+      - VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+      - VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID:-}
+    command: npm run dev -- --host 0.0.0.0 --port 3000

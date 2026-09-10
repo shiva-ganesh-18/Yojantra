@@ -54,9 +54,9 @@ export const LanguageProvider = ({ children }) => {
 
     const meta = SUPPORTED_LANGUAGES.find(l => l.code === newLang);
     const langLabel = meta ? `${meta.label} (${meta.englishName})` : newLang;
-    
-    // Announce to screen readers
-    setAnnouncement(`Interface language switched to ${langLabel}`);
+
+    // Announce to screen readers in the newly selected language
+    setAnnouncement(getTranslation('a11y_language_switched', newLang, `Interface language switched to ${langLabel}`).replace('{lang}', langLabel));
     if (announcementTimeoutRef.current) clearTimeout(announcementTimeoutRef.current);
     announcementTimeoutRef.current = setTimeout(() => setAnnouncement(''), 3000);
 

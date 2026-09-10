@@ -396,7 +396,7 @@ export default function Matches() {
                     <div className="bg-gradient-to-r from-gov-navy-50/80 to-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-2">
                       <p className="text-xs font-bold text-gov-navy-950 flex items-center gap-1.5">
                         <CheckCircle2 size={15} className="text-gov-emerald-600" />
-                        <span>{t('matches_why_match', 'Why This Scheme Matches Your Profile')}:</span>
+                        <span>{t('matches_why_match_full', 'Why This Scheme Matches Your Profile')}:</span>
                       </p>
                       <p className="text-xs text-slate-700 leading-relaxed">
                         {match.ai_explanation || 
@@ -503,7 +503,7 @@ export default function Matches() {
                           ? 'bg-gov-saffron-50 text-gov-saffron-700 border-gov-saffron-200'
                           : 'bg-slate-100 text-slate-700 border-slate-200'
                       }`}>
-                        {score}% {t('matches_badge_match', 'Score')}
+                        {score}% {t('matches_badge_score', 'Score')}
                       </div>
                     </div>
 

@@ -1,8 +1,9 @@
-import React from 'react';
-import { 
-  X, CheckCircle2, XCircle, AlertCircle, IndianRupee, ShieldCheck, 
+import React, { useEffect, useRef } from 'react';
+import {
+  X, CheckCircle2, XCircle, AlertCircle, IndianRupee, ShieldCheck,
   ArrowRight, ExternalLink, Scale, Sparkles, Building, Landmark
 } from 'lucide-react';
+import { useLanguage } from '../hooks/useLanguage';
 
 export default function SchemeCompareModal({ 
   compareData, 
@@ -10,13 +11,49 @@ export default function SchemeCompareModal({
   onClose,
   onSelectScheme
 }) {
+  const { t } = useLanguage();
+  const dialogRef = useRef(null);
+  const prevFocusRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    prevFocusRef.current = document.activeElement;
+    const dialog = dialogRef.current;
+    if (dialog) {
+      const focusTarget = dialog.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      (focusTarget || dialog).focus();
+    }
+    const handler = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'Tab' || !dialog) return;
+      const focusables = dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      const visible = Array.from(focusables).filter((el) => !el.disabled && el.offsetParent !== null);
+      if (visible.length === 0) { e.preventDefault(); return; }
+      const first = visible[0];
+      const last = visible[visible.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      if (prevFocusRef.current && prevFocusRef.current.focus) prevFocusRef.current.focus();
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen || !compareData || !compareData.schemes || compareData.schemes.length === 0) return null;
 
   const { schemes, common_criteria, differing_features, recommendation_summary } = compareData;
   const gridCols = schemes.length <= 2 ? 'md:grid-cols-2' : 'md:grid-cols-3';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-gov-navy-950/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 sm:py-6 animate-in fade-in duration-200"
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="compare-modal-title"
+      tabIndex={-1}
+      className="fixed inset-0 z-50 overflow-y-auto bg-gov-navy-950/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 sm:py-6 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
@@ -30,7 +67,7 @@ export default function SchemeCompareModal({
               <Scale size={24} />
             </span>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              <h2 id="compare-modal-title" className="text-xl sm:text-2xl font-black tracking-tight text-white">
                 Side-by-Side Scheme Comparison
               </h2>
               <p className="text-xs text-slate-300 mt-0.5">
@@ -39,9 +76,9 @@ export default function SchemeCompareModal({
             </div>
           </div>
 
-          <button 
+          <button
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t('a11y_close', 'Close')}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
           >
             <X size={20} />

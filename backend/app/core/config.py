@@ -69,6 +69,19 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "CRITICAL SECURITY CONFIGURATION ERROR: ALLOW_DEV_OTP cannot be enabled in production mode."
                 )
+            # Production Google Sign-In must be backed by verified App Check
+            # whenever Firebase Admin credentials are configured. Unconfigured
+            # deployments keep graceful degradation (endpoints report unconfigured).
+            cred_path = self.FIREBASE_CREDENTIALS_PATH or self.FIREBASE_SERVICE_ACCOUNT_PATH
+            firebase_configured = bool(
+                (self.FIREBASE_PROJECT_ID and self.FIREBASE_CLIENT_EMAIL and self.FIREBASE_PRIVATE_KEY)
+                or (cred_path and os.path.isfile(cred_path))
+            )
+            if firebase_configured and not self.FIREBASE_APP_CHECK_ENFORCEMENT:
+                raise ValueError(
+                    "CRITICAL SECURITY CONFIGURATION ERROR: In production mode with Firebase "
+                    "Admin credentials configured, FIREBASE_APP_CHECK_ENFORCEMENT must be True."
+                )
         else:
             if not self.SECRET_KEY:
                 self.SECRET_KEY = "dev-local-development-secret-key-for-testing-only-32chars"
@@ -78,6 +91,7 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "auto"  # "auto", "gemini", "openai"
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"  # Configurable OpenAI chat model; key is never logged or exposed
     PINECONE_API_KEY: str = ""
     PINECONE_INDEX: str = "schemes"
 

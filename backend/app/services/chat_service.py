@@ -76,9 +76,13 @@ class ChatService:
         pref = (settings.AI_PROVIDER or os.getenv("AI_PROVIDER", "auto")).lower()
         gemini_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
         openai_key = settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY", "")
+        openai_model = (
+            getattr(settings, "OPENAI_MODEL", "") or os.getenv("OPENAI_MODEL", "") or "gpt-4o-mini"
+        )
 
         self.llm = None
         self.gemini_model = None
+        self.openai_model = openai_model
         self.provider_name = "none"
 
         # 1. Try Gemini if requested or auto
@@ -92,12 +96,14 @@ class ChatService:
             except Exception:
                 self.gemini_model = None
 
-        # 2. Try OpenAI if requested or auto fallback
+        # 2. Try OpenAI if requested or auto fallback.
+        # Sends only the already-built verified scheme/RAG messages; the key
+        # stays server-side and is never logged, returned, or sent to clients.
         if (pref in ("auto", "openai")) and openai_key:
             try:
                 from langchain_openai import ChatOpenAI
                 self.llm = ChatOpenAI(
-                    model="gpt-4o-mini",
+                    model=openai_model,
                     temperature=0.2,
                     api_key=openai_key,
                     timeout=5.0
@@ -112,7 +118,7 @@ class ChatService:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=gemini_key)
-                self.gemini_model = genai.GenerativeModel("gemini-3.6-flash")
+                self.gemini_model = genai.GenerativeModel("gemini-1.5-flash")
                 self.provider_name = "gemini"
                 return
             except Exception:
@@ -719,7 +725,7 @@ class ChatService:
         return {
             "provider": self.provider_name,
             "is_ai_live": is_live,
-            "model_name": "gemini-1.5-flash" if self.provider_name == "gemini" else ("gpt-4o-mini" if self.provider_name == "openai" else "local_deterministic_rag"),
+            "model_name": "gemini-1.5-flash" if self.provider_name == "gemini" else (getattr(self, "openai_model", "gpt-4o-mini") if self.provider_name == "openai" else "local_deterministic_rag"),
             "indexed_schemes_count": active_count,
             "fallback_engine": "rule_based_deterministic_rag",
             "disclaimer": (

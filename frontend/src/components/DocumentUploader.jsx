@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAuthStore } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 import { 
   Upload, FileText, CheckCircle2, AlertCircle, X, Camera, 
   ShieldCheck, ArrowRight, Eye, RefreshCw, Check, Sparkles, AlertTriangle
@@ -19,6 +20,7 @@ const DOC_TYPES = [
 
 export default function DocumentUploader({ onUploadComplete, defaultDocType = '' }) {
   const { user } = useAuthStore();
+  const { t } = useLanguage();
   const [selectedType, setSelectedType] = useState(defaultDocType);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -61,11 +63,10 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
     'image/jpeg',
     'image/png',
     'image/jpg',
-    'image/webp',
     'application/pdf'
   ];
 
-  const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
+  const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.pdf'];
 
   const processSelectedFile = (selected) => {
     // 1. Reset file state first
@@ -73,16 +74,28 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
       fileInputRef.current.value = '';
     }
 
-    // 2. Validate file type (Images or PDF)
+    const isPdfOnly = selectedType === 'project_report';
     const fileExt = '.' + (selected.name.split('.').pop() || '').toLowerCase();
-    const isValidType = ALLOWED_MIME_TYPES.includes(selected.type) || 
-      ALLOWED_EXTENSIONS.some(ext => selected.name.toLowerCase().endsWith(ext));
 
-    if (!isValidType) {
-      setError('Unsupported file type. Please upload a valid image (JPG, PNG) or PDF document.');
-      setFile(null);
-      setPreview(null);
-      return;
+    // 2. Validate file type (Images or PDF; strictly PDF for project_report)
+    if (isPdfOnly) {
+      const isPdf = selected.type === 'application/pdf' || fileExt === '.pdf';
+      if (!isPdf) {
+        setError('Detailed Project Report (DPR) must be in PDF format (.pdf).');
+        setFile(null);
+        setPreview(null);
+        return;
+      }
+    } else {
+      const isValidType = ALLOWED_MIME_TYPES.includes(selected.type) || 
+        ALLOWED_EXTENSIONS.some(ext => selected.name.toLowerCase().endsWith(ext));
+
+      if (!isValidType) {
+        setError('Unsupported file type. Please upload a valid image (JPG, PNG) or PDF document.');
+        setFile(null);
+        setPreview(null);
+        return;
+      }
     }
 
     // 3. Validate file size (max 10MB)
@@ -117,6 +130,14 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
     if (file.size > 10 * 1024 * 1024) {
       setError('File size must be 10 MB or less.');
       return;
+    }
+
+    if (selectedType === 'project_report') {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (!isPdf) {
+        setError('Detailed Project Report (DPR) must be in PDF format (.pdf).');
+        return;
+      }
     }
 
     if (ocrStage !== null) return; // Prevent duplicate/parallel uploads
@@ -193,10 +214,10 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div>
           <h3 className="font-bold text-base sm:text-lg text-gov-navy-950">
-            Upload & Scan Document
+            {t('docs_uploader_heading', 'Upload & Scan Document')}
           </h3>
           <p className="text-xs text-slate-500">
-            Automated OCR extracts your details safely and populates your scheme forms.
+            {t('docs_uploader_sub', 'Automated OCR extracts your details safely and populates your scheme forms.')}
           </p>
         </div>
         <div className="flex items-center gap-1.5 text-xs font-semibold text-gov-emerald-700 bg-gov-emerald-50 px-2.5 py-1 rounded-full border border-gov-emerald-200">
@@ -207,15 +228,18 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
 
       {/* Select Document Type */}
       <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-          Select Document Type *
+        <label htmlFor="doc-type-select" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+          {t('docs_select_type', 'Select Document Type')} <span aria-hidden="true">*</span>
         </label>
         <select
+          id="doc-type-select"
+          required
+          aria-required="true"
           value={selectedType}
           onChange={(e) => setSelectedType(e.target.value)}
           className="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-gov-navy-900/10 focus:border-gov-navy-950"
         >
-          <option value="">-- Choose document to upload --</option>
+          <option value="">{t('docs_uploader_choose', '-- Choose document to upload --')}</option>
           {DOC_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label} ({t.req})
@@ -227,11 +251,20 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
       {/* Drag & Drop Upload Zone */}
       {!file ? (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label={t('docs_uploader_drop_title', 'Drag & drop your file here, or') + ' ' + t('docs_uploader_browse', 'browse')}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
           className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all ${
             dragActive
               ? 'border-gov-saffron-500 bg-gov-saffron-50/50'
@@ -242,16 +275,18 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
             <Upload size={24} className="text-gov-saffron-600" />
           </div>
           <p className="text-sm font-bold text-gov-navy-950">
-            Drag & drop your file here, or <span className="text-gov-saffron-700 underline">browse</span>
+            {t('docs_uploader_drop_title', 'Drag & drop your file here, or')} <span className="text-gov-saffron-700 underline">{t('docs_uploader_browse', 'browse')}</span>
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Supports photo or PDF scan (JPG, PNG, PDF up to 10MB). Aadhaar & PAN numbers are strictly masked.
+            {selectedType === 'project_report'
+              ? t('docs_uploader_pdf_only', 'Detailed Project Reports must be uploaded as PDF (.pdf up to 10MB).')
+              : t('docs_uploader_generic_hint', 'Supports photo or PDF scan (JPG, PNG, PDF up to 10MB). Aadhaar & PAN numbers are strictly masked.')}
           </p>
 
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,application/pdf"
+            accept={selectedType === 'project_report' ? 'application/pdf,.pdf' : 'image/jpeg,image/png,image/jpg,application/pdf,.jpg,.jpeg,.png,.pdf'}
             onChange={handleFileSelect}
             className="hidden"
           />
@@ -287,14 +322,14 @@ export default function DocumentUploader({ onUploadComplete, defaultDocType = ''
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium">
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium">
           {error}
         </div>
       )}
 
       {/* Live OCR Processing Pipeline Stepper */}
       {ocrStage && ocrStage !== 'complete' && (
-        <div className="bg-gov-navy-50 border border-gov-navy-200/80 rounded-2xl p-4 space-y-2.5">
+        <div aria-live="polite" className="bg-gov-navy-50 border border-gov-navy-200/80 rounded-2xl p-4 space-y-2.5">
           <p className="text-xs font-bold text-gov-navy-950 flex items-center gap-2">
             <RefreshCw size={14} className="animate-spin text-gov-saffron-600" />
             <span>Processing Document:</span>

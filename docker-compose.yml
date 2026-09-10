@@ -1,54 +1,93 @@
+# ============================================================================
+# Yojantra — PRODUCTION-SAFE base Compose file.
+#
+# Usage:
+#   Production:  docker compose -f docker-compose.yml up -d
+#                (requires SECRET_KEY 32+ chars, POSTGRES_PASSWORD,
+#                 NEO4J_PASSWORD, REDIS_PASSWORD, and REDIS_URL with password)
+#   Development: docker compose up -d
+#                (docker-compose.override.yml is auto-loaded and adds host
+#                ports, source bind mounts, dev servers, and dev-only defaults)
+#
+# Internal services (PostgreSQL, Neo4j, Redis) publish NO host ports here,
+# so they are reachable only on the Compose network in production.
+# No secrets are hardcoded below; everything sensitive comes from the
+# environment. Uploaded documents persist in the `uploads_data` volume.
+# ============================================================================
+
 services:
   db:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-schemematch}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-schemematch}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-schemematch}
-    ports:
-      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-schemematch}" ]
-      interval: 5s
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres}" ]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
   neo4j:
     image: neo4j:5-community
+    restart: unless-stopped
     environment:
-      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-schemematch}
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       NEO4J_PLUGINS: '["apoc"]'
-    ports:
-      - "7474:7474"
-      - "7687:7687"
     volumes:
       - neo4j_data:/data
+    healthcheck:
+      test: [ "CMD-SHELL", "cypher-shell -p \"$$NEO4J_PASSWORD\" \"RETURN 1\"" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # Production Redis always requires authentication; the container refuses
+    # to start when REDIS_PASSWORD is empty. Local dev (override file) runs
+    # plain `redis-server` without auth instead.
+    command:
+      - "sh"
+      - "-c"
+      - "if [ -z \"$$REDIS_PASSWORD\" ]; then echo 'REDIS_PASSWORD must be set (production Redis requires authentication)'; exit 1; fi; exec redis-server --requirepass \"$$REDIS_PASSWORD\""
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "8001:8001"
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-false}
-      - DATABASE_URL=${DATABASE_URL:-postgresql://schemematch:schemematch@db:5432/schemematch}
+      - DATABASE_URL=${DATABASE_URL}
       - SECRET_KEY=${SECRET_KEY:-}
       - NEO4J_URI=${NEO4J_URI:-bolt://neo4j:7687}
       - NEO4J_USER=${NEO4J_USER:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-schemematch}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - UPLOAD_DIR=/app/uploads
       - AI_PROVIDER=${AI_PROVIDER:-auto}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
       - PINECONE_API_KEY=${PINECONE_API_KEY:-}
       - PINECONE_INDEX=${PINECONE_INDEX:-schemes}
       - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
@@ -56,6 +95,8 @@ services:
       - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY:-}
       - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH:-}
       - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+      - FIREBASE_APP_CHECK_ENFORCEMENT=${FIREBASE_APP_CHECK_ENFORCEMENT:-false}
+      - FIREBASE_APP_CHECK_DEBUG_TOKEN=${FIREBASE_APP_CHECK_DEBUG_TOKEN:-}
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
       - TWILIO_API_KEY_SID=${TWILIO_API_KEY_SID:-}
       - TWILIO_API_KEY_SECRET=${TWILIO_API_KEY_SECRET:-}
@@ -67,37 +108,63 @@ services:
       - DIGILOCKER_CLIENT_SECRET=${DIGILOCKER_CLIENT_SECRET:-}
       - UDYAM_API_KEY=${UDYAM_API_KEY:-}
       - AADHAAR_API_KEY=${AADHAAR_API_KEY:-}
+      - PAN_API_KEY=${PAN_API_KEY:-}
+      - GOV_SYNC_API_KEY=${GOV_SYNC_API_KEY:-}
+      # --- Banking / CBS gateway (optional; empty = unconfigured mock mode) ---
+      - BANKING_GATEWAY_URL=${BANKING_GATEWAY_URL:-}
+      - BANKING_GATEWAY_API_KEY=${BANKING_GATEWAY_API_KEY:-}
+      - BANKING_GATEWAY_AUTH_TYPE=${BANKING_GATEWAY_AUTH_TYPE:-bearer}
+      - BANKING_GATEWAY_TIMEOUT_SECONDS=${BANKING_GATEWAY_TIMEOUT_SECONDS:-4.0}
+      - BANKING_GATEWAY_CERT_PATH=${BANKING_GATEWAY_CERT_PATH:-}
+      - BANKING_GATEWAY_KEY_PATH=${BANKING_GATEWAY_KEY_PATH:-}
+      - BANKING_GATEWAY_CA_PATH=${BANKING_GATEWAY_CA_PATH:-}
+      - BANKING_WEBHOOK_SECRET=${BANKING_WEBHOOK_SECRET:-}
+      # --- PFMS / DBT gateway + inbound webhooks (optional; empty = mock mode) ---
+      - PFMS_GATEWAY_URL=${PFMS_GATEWAY_URL:-}
+      - PFMS_API_KEY=${PFMS_API_KEY:-}
+      - PFMS_AUTH_TYPE=${PFMS_AUTH_TYPE:-bearer}
+      - PFMS_TIMEOUT_SECONDS=${PFMS_TIMEOUT_SECONDS:-4.0}
+      - PFMS_WEBHOOK_SECRET=${PFMS_WEBHOOK_SECRET:-}
+      - INTEGRATIONS_WEBHOOK_MAX_AGE_SECONDS=${INTEGRATIONS_WEBHOOK_MAX_AGE_SECONDS:-300}
     depends_on:
       db:
         condition: service_healthy
       neo4j:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8001
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)\"" ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://127.0.0.1:8001}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+    restart: unless-stopped
     ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - PORT=3000
-      - VITE_API_URL=${VITE_API_URL:-http://127.0.0.1:8001}
-      - VITE_FIREBASE_API_KEY=${VITE_FIREBASE_API_KEY:-}
-      - VITE_FIREBASE_AUTH_DOMAIN=${VITE_FIREBASE_AUTH_DOMAIN:-}
-      - VITE_FIREBASE_PROJECT_ID=${VITE_FIREBASE_PROJECT_ID:-}
-      - VITE_FIREBASE_STORAGE_BUCKET=${VITE_FIREBASE_STORAGE_BUCKET:-}
-      - VITE_FIREBASE_MESSAGING_SENDER_ID=${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
-      - VITE_FIREBASE_APP_ID=${VITE_FIREBASE_APP_ID:-}
-    command: npm run dev -- --host 0.0.0.0 --port 3000
+      - "3000:80"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   postgres_data:
   neo4j_data:
+  uploads_data:

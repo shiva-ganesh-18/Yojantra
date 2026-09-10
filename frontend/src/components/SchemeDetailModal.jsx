@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  X, CheckCircle2, XCircle, AlertTriangle, AlertCircle, Calendar, Building, IndianRupee, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  X, CheckCircle2, XCircle, AlertTriangle, AlertCircle, Calendar, Building, IndianRupee,
   FileText, ExternalLink, Bookmark, ShieldCheck, ArrowRight, Clock, HelpCircle,
   Sparkles, Check, ChevronDown, ChevronUp, Layers, Percent, Wallet, Calculator, RefreshCw
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import schemeService from '../services/schemeService';
 import { useAuthStore } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 
 const NORMALIZE_DOC_KEY = (name) => {
   if (!name) return '';
@@ -37,6 +38,9 @@ export default function SchemeDetailModal({
 }) {
   const navigate = useNavigate();
   const { api, user } = useAuthStore();
+  const { t } = useLanguage();
+  const dialogRef = useRef(null);
+  const prevFocusRef = useRef(null);
   const [userDocs, setUserDocs] = useState([]);
   const [applying, setApplying] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
@@ -88,12 +92,32 @@ export default function SchemeDetailModal({
   const [showScheduleTable, setShowScheduleTable] = useState(false);
   const applyTimeoutRef = React.useRef(null);
 
-  // Escape key to close
+  // Escape to close + focus management: move focus into dialog on open,
+  // trap Tab inside dialog, restore focus to trigger on close.
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    prevFocusRef.current = document.activeElement;
+    const dialog = dialogRef.current;
+    if (dialog) {
+      const focusTarget = dialog.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      (focusTarget || dialog).focus();
+    }
+    const handler = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'Tab' || !dialog) return;
+      const focusables = dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      const visible = Array.from(focusables).filter((el) => !el.disabled && el.offsetParent !== null);
+      if (visible.length === 0) { e.preventDefault(); return; }
+      const first = visible[0];
+      const last = visible[visible.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+      if (prevFocusRef.current && prevFocusRef.current.focus) prevFocusRef.current.focus();
+    };
   }, [isOpen, onClose]);
 
   // Cleanup timeout on unmount
@@ -205,7 +229,12 @@ export default function SchemeDetailModal({
     : ['Aadhaar Card', 'PAN Card', 'Bank Passbook / 6-Month Statement', 'UDYAM Registration Certificate', 'Passport Photograph'];
 
   return (
-    <div 
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="scheme-modal-title"
+      tabIndex={-1}
       className="fixed inset-0 z-50 overflow-y-auto bg-gov-navy-950/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-3 sm:py-6 animate-in fade-in duration-200"
       onClick={onClose}
     >
@@ -215,9 +244,9 @@ export default function SchemeDetailModal({
       >
         {/* Modal Top Header */}
         <div className="bg-gradient-to-r from-gov-navy-900 via-gov-navy-800 to-gov-navy-900 text-white p-5 sm:p-6 relative border-b border-gov-navy-700/50 text-left">
-          <button 
+          <button
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t('a11y_close', 'Close')}
             className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
           >
             <X size={20} />
@@ -226,7 +255,7 @@ export default function SchemeDetailModal({
           <div className="flex flex-wrap items-center gap-2 mb-2.5">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-gov-navy-700/80 text-gov-navy-100 border border-gov-navy-600">
               <Building size={13} className="text-gov-saffron-400" />
-              {scheme.ministry || 'Government of India'}
+              {scheme.ministry || t('govt_of_india', 'Government of India')}
             </span>
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gov-saffron-500/20 text-gov-saffron-300 border border-gov-saffron-400/30 capitalize">
               {scheme.scheme_type || 'Financial Support'}
@@ -235,7 +264,7 @@ export default function SchemeDetailModal({
 
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-snug">
+              <h2 id="scheme-modal-title" className="text-xl sm:text-2xl font-black tracking-tight text-white leading-snug">
                 {scheme.name}
               </h2>
               <p className="text-xs sm:text-sm text-slate-300 mt-1">
@@ -380,10 +409,11 @@ export default function SchemeDetailModal({
                 {/* Simulation Inputs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    <label htmlFor="sim-loan-amount" className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                       Loan Amount (₹)
                     </label>
                     <input
+                      id="sim-loan-amount"
                       type="number"
                       min="1000"
                       step="10000"
@@ -403,10 +433,11 @@ export default function SchemeDetailModal({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    <label htmlFor="sim-tenure" className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                       Tenure: {simTenure} Mos ({Math.round(simTenure / 12 * 10) / 10} Yrs)
                     </label>
                     <input
+                      id="sim-tenure"
                       type="range"
                       min="12"
                       max="120"
@@ -423,10 +454,11 @@ export default function SchemeDetailModal({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    <label htmlFor="sim-moratorium" className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                       Moratorium: {simMoratorium} Mos
                     </label>
                     <input
+                      id="sim-moratorium"
                       type="range"
                       min="0"
                       max={Math.min(24, simTenure - 1)}
@@ -441,11 +473,12 @@ export default function SchemeDetailModal({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
+                    <label htmlFor="sim-rate" className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
                       Rate (% p.a.)
                     </label>
                     <div className="flex gap-1">
                       <input
+                        id="sim-rate"
                         type="number"
                         min="0"
                         max="30"
@@ -718,17 +751,16 @@ export default function SchemeDetailModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               {documents.map((doc, idx) => {
                 const docName = typeof doc === 'object' ? doc.name : doc;
+                const explicitType = typeof doc === 'object' ? (doc.doc_type || '') : '';
                 const isMandatory = typeof doc === 'object' ? (doc.mandatory ?? doc.is_mandatory ?? true) : true;
                 const docCategory = typeof doc === 'object' ? (doc.category || 'Scheme Required') : 'Scheme Required';
-                const normKey = NORMALIZE_DOC_KEY(docName);
-                
+                // SINGLE shared vault: exact canonical match only (no fuzzy includes).
+                const normKey = explicitType ? NORMALIZE_DOC_KEY(explicitType) : NORMALIZE_DOC_KEY(docName);
+
                 const matchedDoc = userDocs.find(d => {
-                  const dType = (d.doc_type || '').toLowerCase();
-                  const dName = (d.document_name || '').toLowerCase();
-                  return dType === normKey || 
-                         dType.includes(normKey) || 
-                         normKey.includes(dType) ||
-                         dName.includes(normKey);
+                  if ((d.verification_status || '') === 'rejected') return false;
+                  const dType = NORMALIZE_DOC_KEY(d.doc_type || '');
+                  return dType && dType === normKey;
                 });
                 const isUploaded = !!matchedDoc;
                 const isVerified = matchedDoc?.verification_status === 'verified';
@@ -747,18 +779,22 @@ export default function SchemeDetailModal({
                       <span className="text-[10px] text-slate-400 block">{docCategory}</span>
                     </div>
                     <div>
-                      {isUploaded ? (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 whitespace-nowrap ${
-                          isVerified 
-                            ? 'text-gov-emerald-700 bg-gov-emerald-50 border-gov-emerald-200'
-                            : 'text-blue-700 bg-blue-50 border-blue-200'
-                        }`}>
-                          <Check size={11} /> {isVerified ? 'Verified' : 'Uploaded'}
+                      {isVerified ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 whitespace-nowrap text-gov-emerald-700 bg-gov-emerald-50 border-gov-emerald-200">
+                          <Check size={11} /> ✓ Verified in Document Vault
+                        </span>
+                      ) : isUploaded ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 whitespace-nowrap text-blue-700 bg-blue-50 border-blue-200">
+                          <Check size={11} /> Uploaded
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 whitespace-nowrap">
-                          <AlertTriangle size={11} /> Missing
-                        </span>
+                        <Link
+                          to="/documents"
+                          onClick={onClose}
+                          className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 whitespace-nowrap hover:underline"
+                        >
+                          <AlertTriangle size={11} /> Upload to Document Vault →
+                        </Link>
                       )}
                     </div>
                   </div>

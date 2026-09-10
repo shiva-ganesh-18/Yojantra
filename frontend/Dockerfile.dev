@@ -1,0 +1,14 @@
+# Yojantra frontend — LOCAL DEVELOPMENT image (Vite dev server with hot reload).
+# Used automatically via docker-compose.override.yml. Production uses Dockerfile.
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]

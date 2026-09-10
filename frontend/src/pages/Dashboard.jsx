@@ -162,7 +162,7 @@ export default function Dashboard() {
                       {isComplete ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
                       <span>
                         {isComplete 
-                          ? t('docs_verified', 'Completed') 
+                          ? t('docs_status_completed', 'Completed') 
                           : (!hasPhone ? `${completionPct}% (Phone Missing)` : `${completionPct}% Complete`)}
                       </span>
                     </p>
@@ -214,7 +214,7 @@ export default function Dashboard() {
                     <>
                       <p className={`text-sm font-bold flex items-center gap-1 ${isReady ? 'text-gov-emerald-700' : 'text-amber-600'}`}>
                         {isReady ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                        <span>{totalUp} / {totalReq} {t('docs_tab_all', 'Ready')}</span>
+                        <span>{totalUp} / {totalReq} {t('docs_count_ready', 'Ready')}</span>
                       </p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         {missingMandatory > 0 

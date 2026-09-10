@@ -54,13 +54,22 @@ export default function Documents() {
     window.scrollTo({ top: 400, behavior: 'smooth' });
   };
 
+  const refreshVaultDependents = () => {
+    // SINGLE shared vault: refresh every view derived from it.
+    queryClient.invalidateQueries('my_documents');
+    queryClient.invalidateQueries('document_readiness');
+    queryClient.invalidateQueries('applications_list');
+    queryClient.invalidateQueries('matches');
+    queryClient.invalidateQueries('schemes');
+  };
+
   const handle1ClickAutoFill = async () => {
     setAutoFillLoading(true);
     setAutoFillError(null);
     try {
       const res = await documentService.autoFillProfile();
       setAutoFillSuccess(res.message);
-      queryClient.invalidateQueries('my_documents');
+      refreshVaultDependents();
       setTimeout(() => setAutoFillSuccess(null), 5000);
     } catch (e) {
       console.error(e);
@@ -76,8 +85,7 @@ export default function Documents() {
       setDeletingId(docId);
       try {
         await documentService.deleteDocument(docId);
-        queryClient.invalidateQueries('my_documents');
-        queryClient.invalidateQueries('document_readiness');
+        refreshVaultDependents();
       } catch (e) {
         console.error(e);
         alert(e?.message || 'Failed to delete document. Please try again.');
@@ -124,8 +132,9 @@ export default function Documents() {
             
             {/* Scheme Selector Dropdown */}
             <div className="pt-2 flex items-center gap-2">
-              <span className="text-xs font-bold text-gov-navy-950 whitespace-nowrap">{t('docs_checklist_title', 'Checklist For Scheme')}:</span>
+              <label htmlFor="scheme-checklist-select" className="text-xs font-bold text-gov-navy-950 whitespace-nowrap">{t('docs_checklist_for_scheme', 'Checklist For Scheme')}:</label>
               <select
+                id="scheme-checklist-select"
                 value={selectedSchemeId}
                 onChange={(e) => setSelectedSchemeId(e.target.value)}
                 className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-gov-navy-950 focus:outline-none focus:ring-2 focus:ring-gov-navy-900/10 focus:border-gov-navy-950"
@@ -143,7 +152,7 @@ export default function Documents() {
           {/* Readiness Score Progress Card */}
           <div className="bg-gradient-to-br from-gov-navy-950 to-gov-navy-900 text-white p-5 rounded-2xl flex items-center gap-5 sm:min-w-[320px] shadow-md">
             <div className="relative w-18 h-18 flex items-center justify-center flex-shrink-0">
-              <svg className="w-18 h-18 -rotate-90" viewBox="0 0 36 36">
+              <svg className="w-18 h-18 -rotate-90" viewBox="0 0 36 36" role="img" aria-label={`${t('docs_readiness_score', 'Document Readiness')}: ${readinessScore}%`}>
                 <path
                   className="text-white/10"
                   strokeWidth="3.8"
@@ -169,7 +178,7 @@ export default function Documents() {
                 <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full ${
                   isReady ? 'bg-gov-emerald-500/20 text-gov-emerald-300 border border-gov-emerald-400/30' : 'bg-gov-saffron-500/20 text-gov-saffron-300 border border-gov-saffron-400/30'
                 }`}>
-                  {isReady ? `✓ ${t('docs_readiness_score', 'Ready to Apply')}` : `⚠ ${t('docs_missing', 'Action Needed')}`}
+                  {isReady ? `✓ ${t('docs_readiness_score', 'Ready to Apply')}` : `⚠ ${t('docs_action_needed', 'Action Needed')}`}
                 </span>
               </div>
               <h4 className="text-sm font-bold">{t('docs_readiness_score', 'Document Readiness')}</h4>
@@ -188,8 +197,8 @@ export default function Documents() {
         {/* Dynamic Scheme Checklist Grid */}
         <div className="mt-6 pt-5 border-t border-slate-100">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              {readinessData?.scheme_name ? `${t('docs_checklist_title', 'Checklist')}: ${readinessData.scheme_name}` : t('docs_checklist_title', 'Document Checklist')}
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              {readinessData?.scheme_name ? `${t('docs_checklist_title', 'Checklist')}: ${readinessData.scheme_name}` : t('docs_checklist_general', 'Document Checklist')}
             </p>
             <span className="text-[11px] text-slate-500 font-medium">
               {readinessData?.readiness_summary}
@@ -235,7 +244,7 @@ export default function Documents() {
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{item.description}</p>
+                      <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{item.description}</p>
                     </div>
                   </div>
 
@@ -249,10 +258,10 @@ export default function Documents() {
                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                         : 'bg-slate-100 text-slate-500 border-slate-200'
                     }`}>
-                      {item.is_verified 
-                        ? `✓ ${t('docs_verified', 'Verified')}` 
-                        : item.is_uploaded 
-                        ? `✓ ${t('docs_verified', 'Uploaded')}` 
+                      {item.is_verified
+                        ? '✓ Verified in Document Vault'
+                        : item.is_uploaded
+                        ? `✓ ${t('docs_status_uploaded', 'Uploaded')}`
                         : t('docs_missing', 'Missing')}
                     </span>
                     {!item.is_uploaded && (
@@ -260,7 +269,7 @@ export default function Documents() {
                         onClick={() => openUploadFor(item.doc_type)}
                         className="text-[10px] font-bold text-gov-saffron-700 hover:underline"
                       >
-                        {t('btn_upload', 'Upload')} &rarr;
+                        Upload to Document Vault &rarr;
                       </button>
                     )}
                   </div>
@@ -301,13 +310,13 @@ export default function Documents() {
           </div>
 
           {autoFillSuccess && (
-            <div className="mt-3 p-3 bg-gov-emerald-50 border border-gov-emerald-200 rounded-xl text-xs font-bold text-gov-emerald-800 flex items-center gap-2">
+            <div role="status" className="mt-3 p-3 bg-gov-emerald-50 border border-gov-emerald-200 rounded-xl text-xs font-bold text-gov-emerald-800 flex items-center gap-2">
               <CheckCircle size={16} />
               <span>{autoFillSuccess}</span>
             </div>
           )}
           {autoFillError && (
-            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
+            <div role="alert" className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs font-bold text-red-700 flex items-center gap-2">
               <AlertTriangle size={16} />
               <span>{autoFillError}</span>
             </div>
@@ -318,10 +327,10 @@ export default function Documents() {
       {/* Document Uploader Area */}
       {showUploader && (
         <DocumentUploader
+          key={selectedTypeForUpload}
           defaultDocType={selectedTypeForUpload}
           onUploadComplete={() => {
-            queryClient.invalidateQueries('my_documents');
-            queryClient.invalidateQueries('document_readiness');
+            refreshVaultDependents();
           }}
         />
       )}
@@ -331,10 +340,10 @@ export default function Documents() {
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
             <h3 className="font-bold text-base text-gov-navy-950">
-              Encrypted Document Vault
+              {t('docs_vault_title', 'Encrypted Document Vault')}
             </h3>
             <p className="text-xs text-slate-500">
-              Tamper-tested digital repository linked to your Yojantra entrepreneur profile.
+              {t('docs_vault_sub', 'Tamper-tested digital repository linked to your Yojantra entrepreneur profile.')}
             </p>
           </div>
           <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
@@ -346,8 +355,8 @@ export default function Documents() {
           <SkeletonLoader.Table rows={3} cols={3} />
         ) : uploadedDocs.length === 0 ? (
           <div className="py-10 text-center space-y-2">
-            <FileText size={40} className="mx-auto text-slate-300" />
-            <p className="text-sm font-bold text-gov-navy-950">No documents uploaded yet</p>
+            <FileText size={40} className="mx-auto text-slate-400" />
+            <p className="text-sm font-bold text-gov-navy-950">{t('docs_empty_title', 'No documents uploaded yet')}</p>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               Upload your Aadhaar, PAN, Bank Passbook, or UDYAM certificate to automatically unlock 1-click scheme matching and profile auto-fill.
             </p>
@@ -380,7 +389,7 @@ export default function Documents() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5">
                       Uploaded on {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : 'Recently'} • Format: {doc.file_format?.toUpperCase()}
                     </p>
                     {doc.duplicate_warning && (
@@ -410,7 +419,7 @@ export default function Documents() {
                     disabled={downloadingId === doc.id}
                     aria-label="Download document"
                     title="Download document"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-gov-navy-950 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                    className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-gov-navy-950 hover:bg-slate-100 transition-colors disabled:opacity-50"
                   >
                     {downloadingId === doc.id ? (
                       <span className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin inline-block" />
@@ -423,7 +432,7 @@ export default function Documents() {
                     onClick={() => handleDelete(doc.id)}
                     disabled={deletingId === doc.id}
                     aria-label="Delete document"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                   >
                     {deletingId === doc.id ? (
                       <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin inline-block" />

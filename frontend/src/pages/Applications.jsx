@@ -243,16 +243,16 @@ export default function Applications() {
         </div>
       ) : filteredApps.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 border border-slate-200 shadow-gov text-center space-y-3">
-          <FileText size={48} className="mx-auto text-slate-300" />
-          <h3 className="text-base font-bold text-gov-navy-950">You haven't started an application yet</h3>
+          <FileText size={48} className="mx-auto text-slate-400" />
+          <h3 className="text-base font-bold text-gov-navy-950">{t('apps_empty_title', "You haven't started an application yet")}</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Discover schemes matching your business profile, complete pre-submission checks, and route your verified dossier.
+            {t('apps_empty_sub', 'Discover schemes matching your business profile, complete pre-submission checks, and route your verified dossier.')}
           </p>
           <Link
             to="/matches"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gov-saffron-600 hover:bg-gov-saffron-700 text-white text-xs font-bold shadow-md transition-all mt-2"
           >
-            <span>Explore My Scheme Matches</span>
+            <span>{t('apps_empty_cta', 'Explore My Scheme Matches')}</span>
             <ArrowRight size={15} />
           </Link>
         </div>
@@ -333,7 +333,17 @@ export default function Applications() {
             return (
               <div
                 key={app.id}
+                role="button"
+                tabIndex={0}
+                aria-expanded={selectedApp?.id === app.id}
+                aria-label={app.scheme_name || 'Application'}
                 onClick={() => setSelectedApp(selectedApp?.id === app.id ? null : app)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedApp(selectedApp?.id === app.id ? null : app);
+                  }
+                }}
                 className="bg-white rounded-3xl p-6 border border-slate-200 hover:border-slate-300 shadow-gov transition-all cursor-pointer space-y-4"
               >
                 {/* Header Information */}
@@ -345,7 +355,8 @@ export default function Applications() {
                           <span>REF: {app.partner_reference_code}</span>
                           <button
                             onClick={(e) => handleCopyRef(app.partner_reference_code, e)}
-                            className="text-slate-400 hover:text-slate-700 transition-colors"
+                            aria-label="Copy reference number"
+                            className="relative text-slate-500 hover:text-slate-700 transition-colors after:absolute after:-inset-4 after:content-['']"
                             title="Copy reference number"
                           >
                             {copiedRef === app.partner_reference_code ? <Check size={12} className="text-gov-emerald-600" /> : <Copy size={12} />}
@@ -353,7 +364,7 @@ export default function Applications() {
                         </div>
                       )}
 
-                      <span className="text-slate-300 hidden sm:inline">•</span>
+                      <span className="text-slate-400 hidden sm:inline" aria-hidden="true">•</span>
                       <span className="text-[11px] text-slate-500">
                         Initiated: {new Date(app.created_at).toLocaleDateString()}
                       </span>
@@ -518,7 +529,7 @@ export default function Applications() {
                               {isComplete ? <Check size={14} /> : isFailed ? <XCircle size={14} /> : evt.step}
                             </span>
 
-                            <span className="text-[10px] font-mono text-slate-400">
+                            <span className="text-[10px] font-mono text-slate-500">
                               {evt.timestamp ? new Date(evt.timestamp).toLocaleDateString() : 'Pending'}
                             </span>
                           </div>
@@ -530,7 +541,7 @@ export default function Applications() {
                             {evt.note}
                           </p>
                           {evt.channel_or_portal && (
-                            <span className="text-[9px] font-medium text-slate-400 pt-0.5">
+                            <span className="text-[9px] font-medium text-slate-500 pt-0.5">
                               Via: {evt.channel_or_portal}
                             </span>
                           )}
@@ -558,13 +569,13 @@ export default function Applications() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                       {approval.sanction_reference_number && (
                         <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Sanction Reference</span>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Sanction Reference</span>
                           <span className="font-mono font-bold text-emerald-900">{approval.sanction_reference_number}</span>
                         </div>
                       )}
                       {approval.approved_amount_inr != null && (
                         <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Approved Grant / Loan</span>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Approved Grant / Loan</span>
                           <span className="font-extrabold text-emerald-900 text-sm">
                             ₹{Number(approval.approved_amount_inr).toLocaleString('en-IN')}
                           </span>
@@ -572,7 +583,7 @@ export default function Applications() {
                       )}
                       {approval.approver_name && (
                         <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Sanctioning Authority</span>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Sanctioning Authority</span>
                           <span className="font-semibold text-slate-800">{approval.approver_name}</span>
                         </div>
                       )}
@@ -644,17 +655,17 @@ export default function Applications() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                       <div className="bg-white p-2.5 rounded-xl border border-purple-200">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Disbursed Amount</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Disbursed Amount</span>
                         <span className="font-extrabold text-purple-900 text-sm">
                           ₹{Number(disbursement.amount_inr || 0).toLocaleString('en-IN')}
                         </span>
                       </div>
                       <div className="bg-white p-2.5 rounded-xl border border-purple-200">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">PFMS / DBT Routing</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">PFMS / DBT Routing</span>
                         <span className="font-semibold text-slate-800 text-[11px]">{disbursement.account_routing || 'Aadhaar Payment Bridge'}</span>
                       </div>
                       <div className="bg-white p-2.5 rounded-xl border border-purple-200">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Transaction Reference / UTR</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Transaction Reference / UTR</span>
                         <span className="font-mono font-bold text-purple-950 text-[11px]">
                           {disbursement.transaction_reference || 'In PFMS Clearing'}
                         </span>
@@ -701,9 +712,11 @@ export default function Applications() {
                   </div>
 
                   {syncNotice && syncNotice.appId === app.id && (
-                    <div className={`w-full mt-2 p-2 rounded-lg text-xs font-semibold ${
-                      syncNotice.error ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
-                    }`}>
+                    <div
+                      role={syncNotice.error ? 'alert' : 'status'}
+                      className={`w-full mt-2 p-2 rounded-lg text-xs font-semibold ${
+                        syncNotice.error ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                      }`}>
                       {syncNotice.message || syncNotice.error}
                     </div>
                   )}
@@ -719,7 +732,7 @@ export default function Applications() {
                       </button>
                     )}
 
-                    <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
                       <span>{selectedApp?.id === app.id ? 'Collapse' : 'Tracking Details'}</span>
                       <ChevronRight size={15} className={selectedApp?.id === app.id ? 'rotate-90' : ''} />
                     </span>
@@ -733,7 +746,7 @@ export default function Applications() {
                       <h4 className="font-bold text-gov-navy-950 uppercase tracking-wide">
                         Assigned Partner & Audit Trail
                       </h4>
-                      <span className="text-[11px] text-slate-400 font-mono">
+                      <span className="text-[11px] text-slate-500 font-mono">
                         Tracking ID: {app.id}
                       </span>
                     </div>
@@ -788,25 +801,25 @@ export default function Applications() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px]">
                             {(partnerDetails?.address || partnerDetails?.district) && (
                               <div className="flex items-center gap-1.5 text-slate-600">
-                                <MapPin size={13} className="text-slate-400 flex-shrink-0" />
+                                <MapPin size={13} className="text-slate-500 flex-shrink-0" />
                                 <span>{[partnerDetails.address, partnerDetails.district, partnerDetails.state].filter(Boolean).join(', ')}</span>
                               </div>
                             )}
                             {partnerDetails?.contact_person && (
                               <div className="flex items-center gap-1.5 text-slate-600">
-                                <span className="text-slate-400 font-medium">Contact:</span>
+                                <span className="text-slate-500 font-medium">Contact:</span>
                                 <span className="font-semibold text-slate-800">{partnerDetails.contact_person}</span>
                               </div>
                             )}
                             {partnerDetails?.contact_phone && (
                               <div className="flex items-center gap-1.5 text-slate-600">
-                                <Phone size={12} className="text-slate-400 flex-shrink-0" />
+                                <Phone size={12} className="text-slate-500 flex-shrink-0" />
                                 <span>{partnerDetails.contact_phone}</span>
                               </div>
                             )}
                             {partnerDetails?.contact_email && (
                               <div className="flex items-center gap-1.5 text-slate-600">
-                                <Mail size={12} className="text-slate-400 flex-shrink-0" />
+                                <Mail size={12} className="text-slate-500 flex-shrink-0" />
                                 <span>{partnerDetails.contact_email}</span>
                               </div>
                             )}
@@ -832,13 +845,13 @@ export default function Applications() {
                           <span className="font-bold text-gov-navy-950 text-[11px] uppercase tracking-wider">
                             Routing & Scrutiny Audit Trail ({((app.routing_history || app.form_data?.routing_history) || []).length} events)
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Immutable Log</span>
+                          <span className="text-[10px] text-slate-500 font-mono">Immutable Log</span>
                         </div>
 
                         <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
                           {((app.routing_history || app.form_data?.routing_history) || []).map((audit, idx) => (
                             <div key={idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-[11px] space-y-1">
-                              <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
+                              <div className="flex items-center justify-between font-mono text-[10px] text-slate-500">
                                 <span>{audit.timestamp ? new Date(audit.timestamp).toLocaleString() : 'N/A'}</span>
                                 <span className="px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 uppercase text-[9px] font-bold">
                                   {audit.source || 'portal'}
@@ -848,7 +861,7 @@ export default function Applications() {
                                 {audit.from_status && (
                                   <>
                                     <span className="text-slate-500 font-normal">{audit.from_status}</span>
-                                    <span className="text-slate-400">→</span>
+                                    <span className="text-slate-500">→</span>
                                   </>
                                 )}
                                 <span className="text-gov-navy-900">{audit.to_status}</span>
@@ -863,7 +876,7 @@ export default function Applications() {
                                   "{audit.reason}"
                                 </p>
                               )}
-                              <div className="text-[10px] text-slate-400 pt-0.5">
+                              <div className="text-[10px] text-slate-500 pt-0.5">
                                 Actor: <span className="font-medium text-slate-600">{audit.actor}</span> ({audit.actor_role})
                               </div>
                             </div>
@@ -889,14 +902,20 @@ export default function Applications() {
 
       {/* Resolve Document Request Modal */}
       {resolveModalApp && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="resolve-modal-title"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          onKeyDown={(e) => { if (e.key === 'Escape') setResolveModalApp(null); }}
+        >
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-in zoom-in-95 duration-200 text-left">
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
                   Document Query Resolution
                 </span>
-                <h3 className="text-lg font-extrabold text-gov-navy-950 mt-1">
+                <h3 id="resolve-modal-title" className="text-lg font-extrabold text-gov-navy-950 mt-1">
                   Respond to Officer Query
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -906,9 +925,10 @@ export default function Applications() {
 
               <button
                 onClick={() => setResolveModalApp(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                aria-label={t('btn_close', 'Close')}
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all"
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </button>
             </div>
 
@@ -930,29 +950,30 @@ export default function Applications() {
             </div>
 
             <div className="space-y-1 text-xs text-slate-600">
-              <label className="font-bold text-slate-800 block">
+              <label htmlFor="resolve-compliance-notes" className="font-bold text-slate-800 block">
                 Applicant Compliance Notes / Upload Confirmation:
               </label>
               <textarea
+                id="resolve-compliance-notes"
                 value={resolveComments}
                 onChange={(e) => setResolveComments(e.target.value)}
                 placeholder="Explain the changes made, or note which documents have been uploaded to your Document Vault..."
                 rows={4}
                 className="w-full p-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-orange-500 focus:outline-none"
               />
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 Tip: You can upload required PDFs or certificates in your <Link to="/documents" className="text-gov-navy-900 font-bold underline">Documents Vault</Link> before submitting.
               </p>
             </div>
 
             {resolveError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
+              <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
                 {resolveError}
               </div>
             )}
 
             {resolveSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-bold flex items-center gap-1.5">
+              <div role="status" className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-bold flex items-center gap-1.5">
                 <CheckCircle2 size={16} className="text-emerald-600" />
                 <span>{resolveSuccess}</span>
               </div>
@@ -989,7 +1010,13 @@ export default function Applications() {
 
       {/* Pre-Submission Validation & Checklist Modal */}
       {validationModalApp && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="validation-modal-title"
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          onKeyDown={(e) => { if (e.key === 'Escape') setValidationModalApp(null); }}
+        >
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-5 animate-in zoom-in-95 duration-200">
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
@@ -997,7 +1024,7 @@ export default function Applications() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gov-saffron-600 bg-gov-saffron-50 px-2 py-0.5 rounded">
                   Pre-Submission Readiness Check
                 </span>
-                <h3 className="text-xl font-extrabold text-gov-navy-950 mt-1">
+                <h3 id="validation-modal-title" className="text-xl font-extrabold text-gov-navy-950 mt-1">
                   {validationModalApp.scheme_name}
                 </h3>
                 {validationData?.partner_reference_code && (
@@ -1009,9 +1036,10 @@ export default function Applications() {
 
               <button
                 onClick={() => setValidationModalApp(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+                aria-label={t('btn_close', 'Close')}
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all"
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </button>
             </div>
 
@@ -1095,7 +1123,7 @@ export default function Applications() {
                           <p className="text-[11px] text-slate-500 mt-0.5">
                             {partnerRoutingData.assigned_partner.location || partnerRoutingData.assigned_partner.address || 'Accredited Nodal Center'}
                           </p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
+                          <p className="text-[10px] text-slate-500 mt-0.5">
                             {partnerRoutingData.assigned_partner.recommendation_reason}
                           </p>
                           {partnerRoutingData.assigned_partner.eligibility_reason && (
@@ -1122,7 +1150,7 @@ export default function Applications() {
                       </div>
                     ) : (
                       <div className="bg-white p-2.5 rounded-xl border border-slate-200 text-slate-500 text-xs flex items-center gap-2">
-                        <Info size={14} className="text-slate-400 flex-shrink-0" />
+                        <Info size={14} className="text-slate-500 flex-shrink-0" />
                         <span>No regional channel partner registered; application will be routed directly via central nodal portal.</span>
                       </div>
                     )}
@@ -1145,7 +1173,7 @@ export default function Applications() {
                 )}
 
                 {submitError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700">
+                  <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700">
                     {submitError}
                   </div>
                 )}
@@ -1181,6 +1209,19 @@ export default function Applications() {
                             <div>
                               <p className="font-bold text-gov-navy-950">{item.title}</p>
                               <p className="text-[11px] text-slate-500 mt-0.5">{item.description}</p>
+                              {item.category === 'document' && (
+                                <p className={`text-[11px] font-bold mt-1 ${
+                                  item.is_verified || item.vault_status === 'verified'
+                                    ? 'text-gov-emerald-700'
+                                    : 'text-amber-700'
+                                }`}>
+                                  {(item.is_verified || item.vault_status === 'verified')
+                                    ? '✓ Verified in Document Vault'
+                                    : item.is_completed
+                                    ? 'Uploaded (pending scrutiny)'
+                                    : 'Upload to Document Vault →'}
+                                </p>
+                              )}
                             </div>
                           </div>
 
@@ -1200,7 +1241,7 @@ export default function Applications() {
                                 to={item.action_url}
                                 className="px-3 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 font-bold text-gov-navy-950 flex items-center gap-1 flex-shrink-0"
                               >
-                                <span>Complete</span>
+                                <span>{item.category === 'document' ? 'Upload to Document Vault →' : 'Complete'}</span>
                                 <ArrowRight size={12} />
                               </Link>
                             )

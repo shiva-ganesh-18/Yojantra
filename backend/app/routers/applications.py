@@ -35,7 +35,7 @@ from app.schemas import (
     ResolveDocumentRequest,
 )
 from app.services.notification_service import NotificationService
-from app.services.document_service import normalize_document_type
+from app.services.document_service import normalize_document_type, build_canonical_vault_map
 from app.services.partner_routing_service import PartnerRoutingService
 from app.services.partner_routing_status_service import (
     PartnerRoutingStatusService,
@@ -313,8 +313,8 @@ def _compute_application_validation(
                 ))
                 warnings.append("Requested loan/subsidy exceeds standard scheme ceiling; bank appraisal may scale down.")
 
-    # 3. Document Completeness Checks
-    uploaded_doc_types = {d.doc_type: d for d in user_docs if d.verification_status != "rejected"}
+    # 3. Document Completeness Checks — SINGLE shared Document Vault (canonical exact match).
+    uploaded_doc_types = build_canonical_vault_map(user_docs)
     
     # Check scheme documents required (or standard primary docs)
     required_docs = scheme.documents_required if scheme.documents_required else [
@@ -327,12 +327,13 @@ def _compute_application_validation(
         for req_doc in required_docs:
             if isinstance(req_doc, dict):
                 raw_name = req_doc.get("name", "")
+                explicit = (req_doc.get("doc_type") or "").strip()
                 is_mand = req_doc.get("mandatory", req_doc.get("is_mandatory", True))
+                canonical_type = normalize_document_type(explicit) if explicit else normalize_document_type(raw_name)
             else:
                 raw_name = str(req_doc)
                 is_mand = True
-
-            canonical_type = normalize_document_type(raw_name)
+                canonical_type = normalize_document_type(raw_name)
             if canonical_type in seen_canonical:
                 continue
             seen_canonical.add(canonical_type)
@@ -347,13 +348,13 @@ def _compute_application_validation(
                 field_or_doc=canonical_type,
                 label=f"{label_name} Document" if not label_name.lower().endswith("document") else label_name,
                 is_valid=is_present,
-                message="Document uploaded and verified via internal OCR" if is_verified else (
-                    "Document uploaded (pending scrutiny)" if is_present else f"Mandatory document {label_name} is missing"
+                message="✓ Verified in Document Vault" if is_verified else (
+                    "Document uploaded (pending scrutiny)" if is_present else f"Upload to Document Vault → ({label_name} is missing)"
                 ),
                 severity="warning" if (not is_present or not is_verified) else "info"
             ))
             if not is_present and is_mand:
-                warnings.append(f"Missing mandatory document: {label_name}. Accredited partner will request document upload before final sanction.")
+                warnings.append(f"Upload to Document Vault → : {label_name} is missing. Accredited partner will request document upload before final sanction.")
     else:
         # Generic document check
         has_any_doc = len(user_docs) > 0
@@ -963,8 +964,8 @@ def get_application_checklist(
 
     target_user = application.user if application.user else user
     user_docs = db.query(Document).filter(Document.user_id == target_user.id).all()
-    # Map valid (non-rejected) documents by canonical doc_type
-    doc_map = {d.doc_type: d for d in user_docs if d.verification_status != "rejected"}
+    # SINGLE shared Document Vault: canonical exact-match map (verified preferred).
+    doc_map = build_canonical_vault_map(user_docs)
 
     items: List[ApplicationChecklistItem] = []
 
@@ -1016,12 +1017,13 @@ def get_application_checklist(
     for doc in req_docs:
         if isinstance(doc, dict):
             raw_name = doc.get("name", "")
+            explicit = (doc.get("doc_type") or "").strip()
             is_mand = doc.get("mandatory", doc.get("is_mandatory", True))
+            canonical_type = normalize_document_type(explicit) if explicit else normalize_document_type(raw_name)
         else:
             raw_name = str(doc)
             is_mand = True
-
-        canonical_type = normalize_document_type(raw_name)
+            canonical_type = normalize_document_type(raw_name)
         if canonical_type in seen_types:
             continue
         seen_types.add(canonical_type)
@@ -1029,15 +1031,18 @@ def get_application_checklist(
         doc_name = _format_document_display_name(raw_name) if raw_name else _format_document_display_name(canonical_type)
         item_title = _format_checklist_item_title(doc_name)
 
-        # STRICT CHECK: Only mark complete if this exact canonical document is uploaded and not rejected!
+        # STRICT CHECK: Only mark complete if this exact canonical vault document exists.
+        # Aadhaar satisfies only Aadhaar, PAN only PAN, bank_passbook never satisfies bank_statement, etc.
         doc_obj = doc_map.get(canonical_type)
         has_doc = (doc_obj is not None) and (doc_obj.verification_status != "rejected")
         is_verified = (doc_obj is not None) and (doc_obj.verification_status == "verified")
 
-        if has_doc:
-            desc = f"Verified: Digital copy of {doc_name} is uploaded and attached for scrutiny." if is_verified else f"Uploaded: Digital copy of {doc_name} uploaded, pending nodal verification."
+        if is_verified:
+            desc = f"✓ Verified in Document Vault: {doc_name} is uploaded and reused for this application."
+        elif has_doc:
+            desc = f"Uploaded: Digital copy of {doc_name} uploaded, pending nodal verification."
         else:
-            desc = f"Action required: Upload digital copy of {doc_name} to fulfill mandatory compliance." if is_mand else f"Optional: Digital copy of {doc_name} for additional subsidy appraisal."
+            desc = f"Upload to Document Vault → : {doc_name} is missing." if is_mand else f"Optional: Upload {doc_name} to Document Vault for additional subsidy appraisal."
 
         items.append(ApplicationChecklistItem(
             id=f"doc_{canonical_type}",
@@ -1046,7 +1051,10 @@ def get_application_checklist(
             description=desc,
             is_completed=has_doc,
             is_mandatory=bool(is_mand),
-            action_url="/documents"
+            action_url="/documents",
+            is_verified=is_verified,
+            document_id=doc_obj.id if doc_obj else None,
+            vault_status="verified" if is_verified else ("uploaded" if has_doc else "missing"),
         ))
 
     # 4. Official portal guidance step

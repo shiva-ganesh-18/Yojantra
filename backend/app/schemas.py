@@ -383,6 +383,10 @@ class ApplicationChecklistItem(BaseModel):
     is_completed: bool
     is_mandatory: bool = True
     action_url: Optional[str] = None
+    # Shared Document Vault reuse status (exact canonical match only).
+    is_verified: bool = False
+    document_id: Optional[UUID] = None
+    vault_status: str = "missing"  # 'verified' | 'uploaded' | 'missing'
 
 
 class ApplicationChecklistResponse(BaseModel):

@@ -90,6 +90,66 @@ def normalize_document_type(doc_name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", clean).strip("_")
 
 
+# Single shared Document Vault: one canonical doc_type = one reusable record.
+# Exact canonical matching only: aadhaar satisfies only aadhaar, pan only pan,
+# bank_passbook does NOT satisfy bank_statement, etc.
+def build_canonical_vault_map(user_docs):
+    """Index user documents by canonical doc_type, preferring verified over pending.
+
+    Skips rejected docs. When multiple records share a canonical type (legacy
+    duplicates), the verified one wins; ties break by newest created_at.
+    This is the SINGLE shared source for all schemes/loans/subsidies/grants.
+    """
+    vault = {}
+    for d in user_docs or []:
+        status = getattr(d, "verification_status", None)
+        if status == "rejected":
+            continue
+        try:
+            canonical = normalize_document_type(getattr(d, "doc_type", "") or "")
+        except Exception:
+            continue
+        if not canonical:
+            continue
+        existing = vault.get(canonical)
+        if existing is None:
+            vault[canonical] = d
+            continue
+        # Prefer verified over non-verified; then newest.
+        existing_verified = getattr(existing, "verification_status", "") == "verified"
+        current_verified = status == "verified"
+        if current_verified and not existing_verified:
+            vault[canonical] = d
+        elif current_verified == existing_verified:
+            try:
+                if (getattr(d, "created_at", None) or "") > (getattr(existing, "created_at", None) or ""):
+                    vault[canonical] = d
+            except Exception:
+                pass
+    return vault
+
+
+# Canonical upload allowlist for the shared vault (exact match only).
+# GST is accepted here but only *required* when a scheme requires it (see readiness).
+CANONICAL_UPLOAD_MIME_TYPES = {
+    "aadhaar": ["image/jpeg", "image/png", "application/pdf"],
+    "pan": ["image/jpeg", "image/png", "application/pdf"],
+    "business_pan": ["image/jpeg", "image/png", "application/pdf"],
+    "bank_passbook": ["image/jpeg", "image/png", "application/pdf"],
+    "bank_statement": ["image/jpeg", "image/png", "application/pdf"],
+    "udyam": ["image/jpeg", "image/png", "application/pdf"],
+    "gst": ["image/jpeg", "image/png", "application/pdf"],
+    "income_certificate": ["image/jpeg", "image/png", "application/pdf"],
+    "caste_certificate": ["image/jpeg", "image/png", "application/pdf"],
+    "domicile_certificate": ["image/jpeg", "image/png", "application/pdf"],
+    "fssai_license": ["image/jpeg", "image/png", "application/pdf"],
+    "incorporation_cert": ["image/jpeg", "image/png", "application/pdf"],
+    "noc_pollution": ["image/jpeg", "image/png", "application/pdf"],
+    "machinery_quotation": ["image/jpeg", "image/png", "application/pdf"],
+    "project_report": ["application/pdf"],
+    "photo": ["image/jpeg", "image/png"],
+}
+
 # Standard core documents required for Indian marginalized entrepreneur scheme applications
 CORE_DOCUMENTS_CATALOG = [
     {"doc_type": "aadhaar", "name": "Aadhaar Card", "description": "Identity proof (Masked UIDAI UID/Virtual ID)", "is_mandatory": True, "category": "General Enterprise", "is_scheme_specific": False},
@@ -101,6 +161,34 @@ CORE_DOCUMENTS_CATALOG = [
     {"doc_type": "project_report", "name": "Detailed Project Report (DPR)", "description": "Business project proposal & financial feasibility", "is_mandatory": False, "category": "General Enterprise", "is_scheme_specific": False},
     {"doc_type": "gst", "name": "GST Registration Certificate", "description": "Goods & Services Tax identification number", "is_mandatory": False, "category": "General Enterprise", "is_scheme_specific": False},
 ]
+
+# Magic-byte (content signature) allowlist for supported upload types.
+# Checked against actual file bytes BEFORE anything is written to disk, so a
+# mismatched or disguised file (e.g. an executable renamed to .png) is
+# rejected even when its extension and client-supplied MIME type look valid.
+FILE_SIGNATURES = {
+    "pdf": (b"%PDF-",),
+    "jpg": (b"\xFF\xD8\xFF",),
+    "jpeg": (b"\xFF\xD8\xFF",),
+    # 4-byte PNG prefix (full 8-byte form is b"\x89PNG\r\n\x1a\n"); no
+    # executable, script, GIF, or text payload starts with these bytes.
+    "png": (b"\x89PNG",),
+}
+
+
+def validate_file_signature(contents: bytes, file_ext: str) -> None:
+    """Reject files whose content signature does not match their extension."""
+    signatures = FILE_SIGNATURES.get((file_ext or "").lower())
+    if signatures and not contents.startswith(signatures):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File content does not match .{file_ext} format "
+                f"(content signature mismatch). Upload a genuine "
+                f"{file_ext.upper()} file."
+            ),
+        )
+
 
 def _sanitize_for_json(data: Any) -> Any:
     """Recursively convert Decimals, datetimes, and UUIDs to standard JSON-compatible Python primitives."""
@@ -134,27 +222,25 @@ class DocumentService:
         file: UploadFile, 
         doc_type: str
     ) -> Document:
-        """Upload and process a document with OCR, duplicate detection, and structured field extraction."""
+        """Upload ONCE -> store ONCE -> reuse everywhere via canonical doc_type."""
 
-        # Validate file type
-        allowed_types = {
-            "pan": ["image/jpeg", "image/png", "application/pdf"],
-            "aadhaar": ["image/jpeg", "image/png", "application/pdf"],
-            "udyam": ["image/jpeg", "image/png", "application/pdf"],
-            "gst": ["image/jpeg", "image/png", "application/pdf"],
-            "bank_passbook": ["image/jpeg", "image/png", "application/pdf"],
-            "income_certificate": ["image/jpeg", "image/png", "application/pdf"],
-            "caste_certificate": ["image/jpeg", "image/png", "application/pdf"],
-            "project_report": ["application/pdf"],
-            "photo": ["image/jpeg", "image/png"],
-        }
-
-        if doc_type not in allowed_types:
+        # Normalize to canonical vault key FIRST so aliases reuse the same record.
+        # e.g. "PAN Card" / "pan_card" -> "pan"; "Bank Statement (6 Months)" -> "bank_statement".
+        canonical_type = normalize_document_type(doc_type or "")
+        if not canonical_type:
             raise HTTPException(status_code=400, detail=f"Invalid doc_type: {doc_type}")
+
+        allowed_types = CANONICAL_UPLOAD_MIME_TYPES
+
+        if canonical_type not in allowed_types:
+            raise HTTPException(status_code=400, detail=f"Invalid doc_type: {doc_type}")
+
+        # From here on, use the canonical type for storage, filenames, and extraction.
+        doc_type = canonical_type
 
         if file.content_type not in allowed_types[doc_type]:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Invalid file type. Allowed: {allowed_types[doc_type]}"
             )
 
@@ -200,6 +286,10 @@ class DocumentService:
         if file_ext == "png" and content_type != "image/png":
             raise HTTPException(status_code=400, detail="MIME type mismatch: Expected image/png for .png file.")
 
+        # Content-signature check BEFORE anything touches the disk: the
+        # extension and client-supplied MIME type were already validated above.
+        validate_file_signature(contents, file_ext)
+
         safe_uuid = uuid.uuid4().hex
         unique_name = f"{user_id}_{doc_type}_{safe_uuid}.{file_ext}"
         file_path = os.path.abspath(os.path.join(self.upload_dir, unique_name))
@@ -242,7 +332,40 @@ class DocumentService:
         # Sanitize metadata for guaranteed JSON serialization
         clean_meta_info = _sanitize_for_json(meta_info)
 
-        # Create DB record
+        # SINGLE shared vault: replace any existing record(s) of the SAME
+        # canonical type instead of duplicating. Keeps one DB row + one file
+        # per canonical doc_type so every scheme checklist reuses it.
+        try:
+            prior_docs = self.db.query(Document).filter(Document.user_id == user_id).all()
+        except Exception:
+            prior_docs = []
+        for prior in list(prior_docs or []):
+            try:
+                prior_canonical = normalize_document_type(getattr(prior, "doc_type", "") or "")
+            except Exception:
+                continue
+            if prior_canonical != doc_type:
+                continue
+            # Remove prior physical file (strictly inside upload_dir only).
+            try:
+                prior_path = os.path.abspath(getattr(prior, "file_url", "") or "")
+                if prior_path and prior_path.startswith(self.upload_dir) and os.path.isfile(prior_path):
+                    try:
+                        os.remove(prior_path)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            try:
+                self.db.delete(prior)
+            except Exception:
+                pass
+        try:
+            self.db.flush()
+        except Exception:
+            pass
+
+        # Create DB record (single canonical record per doc_type)
         doc = Document(
             user_id=user_id,
             doc_type=doc_type,
@@ -562,7 +685,8 @@ class DocumentService:
     def calculate_readiness_score(self, user_id: uuid.UUID, scheme_id: Optional[uuid.UUID] = None) -> Dict[str, Any]:
         """Calculate scheme-specific or general document readiness score (0-100%) and dynamic checklist."""
         user_docs = self.db.query(Document).filter(Document.user_id == user_id).all()
-        doc_map = {d.doc_type: d for d in user_docs}
+        # SINGLE shared vault: canonical exact-match lookup (verified preferred).
+        doc_map = build_canonical_vault_map(user_docs)
 
         scheme = None
         required_list = []
@@ -576,11 +700,14 @@ class DocumentService:
             seen_types = set()
 
             # 1. Parse scheme specific requirements if defined
+            # Every requirement resolves to an exact canonical vault key so the
+            # shared vault is reused (scheme-specific docs included).
             if scheme.documents_required and isinstance(scheme.documents_required, list):
                 for item in scheme.documents_required:
                     if isinstance(item, dict):
                         raw_name = item.get("name", "")
-                        dtype = item.get("doc_type") or normalize_document_type(raw_name)
+                        explicit = (item.get("doc_type") or "").strip()
+                        dtype = normalize_document_type(explicit) if explicit else normalize_document_type(raw_name)
                         is_mand = item.get("mandatory", item.get("is_mandatory", True))
                         desc = item.get("description", f"Required for {scheme.name} nodal evaluation")
                     else:

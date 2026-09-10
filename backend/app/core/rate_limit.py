@@ -82,6 +82,11 @@ def _check_memory_rate_limit(key: str, max_requests: int, window_seconds: int) -
         return True, remaining, 0
 
 
+def _is_production() -> bool:
+    """True when running under production guardrails (fail-safe, never bypass)."""
+    return getattr(settings, "ENVIRONMENT", "").lower() in ("production", "prod")
+
+
 def _check_redis_rate_limit(redis_client, key: str, max_requests: int, window_seconds: int) -> Tuple[bool, int, int]:
     """
     Check rate limit using Redis atomic multi-exec.
@@ -106,6 +111,14 @@ def _check_redis_rate_limit(redis_client, key: str, max_requests: int, window_se
         remaining = max(0, max_requests - current_count)
         return True, remaining, 0
     except Exception as e:
+        if _is_production():
+            # Fail safely in production: never downgrade to a per-process
+            # limiter that replicas would not share.
+            logger.error(f"Redis rate limit failed in production ({e}); failing closed.")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service temporarily unavailable. Please retry.",
+            )
         logger.warning(f"Redis rate limit failed ({e}), falling back to memory.")
         return _check_memory_rate_limit(key, max_requests, window_seconds)
 
@@ -119,8 +132,11 @@ class RateLimiter:
         self.key_prefix = key_prefix
 
     async def __call__(self, request: Request, response: Response):
-        # Bypass rate limits in test environments if specifically configured
-        if getattr(settings, "ENVIRONMENT", "").lower() == "test_bypass_rl":
+        env = getattr(settings, "ENVIRONMENT", "").lower()
+        # Test bypass is honored only with DEBUG on (local test runs); it can
+        # never disable limiting under production guardrails (DEBUG is forced
+        # off there, and production-like env values fall through to enforcement).
+        if env == "test_bypass_rl" and getattr(settings, "DEBUG", False):
             return
 
         key = _get_client_key(request, self.key_prefix)
@@ -129,6 +145,14 @@ class RateLimiter:
         if redis_client:
             is_allowed, remaining, retry_after = _check_redis_rate_limit(
                 redis_client, key, self.requests, self.window_seconds
+            )
+        elif _is_production():
+            # Fail safely in production: never silently downgrade to a
+            # per-process limiter that replicas would not share.
+            logger.error("Redis unavailable in production; rate limiter failing closed.")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service temporarily unavailable. Please retry.",
             )
         else:
             is_allowed, remaining, retry_after = _check_memory_rate_limit(
