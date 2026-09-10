@@ -21,7 +21,7 @@ def test_core_health_and_docs_endpoints(client):
     assert res_health.status_code == 200
     data = res_health.json()
     assert data["status"] == "healthy"
-    assert data["service"] == "schemematch-ai"
+    assert data["service"] in ("yojantra-api", "schemematch-ai")
 
     # 2. Swagger docs
     res_docs = client.get("/docs")
@@ -84,7 +84,7 @@ def test_chat_service_transparent_fallback(test_db):
     res = chat_svc.process_message(user_id=None, request=msg_req)
     assert res.reply is not None
     assert len(res.reply) > 10
-    assert res.source in ("ai", "rule_based_fallback")
+    assert res.source in ("gemini_ai", "openai_ai", "ai", "rule_based_fallback")
 
 
 def test_user_onboarding_extended_demographics():

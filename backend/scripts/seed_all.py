@@ -83,191 +83,16 @@ def seed_users(db):
 
 
 def seed_schemes(db):
-    schemes = [
-        {
-            "name": "Stand-Up India",
-            "ministry": "DFS, Ministry of Finance",
-            "description": "Provides bank loans between ₹10 lakh to ₹1 crore to at least one SC/ST borrower and one woman borrower per bank branch for setting up a greenfield enterprise.",
-            "scheme_type": "loan",
-            "max_benefit_inr": Decimal("10000000"),
-            "min_benefit_inr": Decimal("1000000"),
-            "benefit_description": "Bank loan ₹10 lakh - ₹1 crore with composite loan facility",
-            "interest_rate": Decimal("10.0"),
-            "collateral_required": False,
-            "application_mode": "offline",
-            "official_url": "https://www.standupmitra.in",
-            "helpline_number": "1800-180-1111",
-            "target_genders": ["female"],
-            "target_social_categories": ["sc", "st"],
-            "target_business_types": ["manufacturing", "service", "trading"],
-            "target_business_stages": ["pre_revenue", "revenue"],
-            "max_turnover_inr": Decimal("10000000"),
-            "max_employees": 50,
-            "women_ownership_min_percent": 51,
-            "requires_udyam": True,
-            "documents_required": [
-                {"name": "PAN Card", "mandatory": True, "format": "pdf"},
-                {"name": "Aadhaar Card", "mandatory": True, "format": "pdf"},
-                {"name": "Caste Certificate", "mandatory": True, "format": "pdf"},
-                {"name": "Project Report", "mandatory": True, "format": "pdf"},
-                {"name": "Bank Statement", "mandatory": True, "format": "pdf"}
-            ],
-            "application_steps": [
-                {"step": 1, "description": "Visit nearest bank branch", "channel": "offline"},
-                {"step": 2, "description": "Submit application with project report", "channel": "offline"},
-                {"step": 3, "description": "Bank evaluates and sanctions loan", "channel": "offline"}
-            ],
-            "rules": [
-                {"field_name": "target_genders", "operator": "in", "rule_value": ["female"], "is_mandatory": False, "description": "Preference for women or SC/ST entrepreneurs"},
-                {"field_name": "target_social_categories", "operator": "in", "rule_value": ["sc", "st"], "is_mandatory": False, "description": "SC/ST borrowers eligible"}
-            ],
-            "benefits": [
-                {"benefit_type": "loan", "amount_min": Decimal("1000000"), "amount_max": Decimal("10000000"), "interest_rate": Decimal("10.0"), "disbursement_mode": "bank_loan", "description": "Bank loan ₹10 lakh to ₹1 crore for greenfield enterprise"}
-            ]
-        },
-        {
-            "name": "PM Mudra Yojana (PMMY)",
-            "ministry": "Ministry of Finance",
-            "description": "Provides loans up to ₹10 lakh to non-corporate, non-farm small/micro enterprises. Shishu: up to ₹50,000, Kishore: ₹50,001-₹5 lakh, Tarun: ₹5-10 lakh.",
-            "scheme_type": "loan",
-            "max_benefit_inr": Decimal("1000000"),
-            "min_benefit_inr": Decimal("10000"),
-            "benefit_description": "Collateral-free loans up to ₹10 lakh under Shishu, Kishore, Tarun categories",
-            "interest_rate": Decimal("12.0"),
-            "collateral_required": False,
-            "application_mode": "both",
-            "official_url": "https://www.mudra.org.in",
-            "helpline_number": "1800-180-1111",
-            "target_genders": None,
-            "target_social_categories": None,
-            "target_business_types": ["manufacturing", "service", "trading", "retail", "handicraft"],
-            "target_business_stages": ["idea", "pre_revenue", "revenue"],
-            "max_turnover_inr": Decimal("5000000"),
-            "max_employees": 10,
-            "documents_required": [
-                {"name": "Identity Proof", "mandatory": True, "format": "pdf"},
-                {"name": "Address Proof", "mandatory": True, "format": "pdf"},
-                {"name": "Business Proof", "mandatory": True, "format": "pdf"}
-            ],
-            "application_steps": [
-                {"step": 1, "description": "Approach bank/NBFC/MFI", "channel": "both"},
-                {"step": 2, "description": "Fill Mudra application form", "channel": "both"},
-                {"step": 3, "description": "Submit with business details", "channel": "both"}
-            ],
-            "rules": [
-                {"field_name": "max_turnover_inr", "operator": "<=", "rule_value": 5000000, "is_mandatory": True, "description": "Annual turnover under ₹50 lakh"}
-            ],
-            "benefits": [
-                {"benefit_type": "loan", "amount_min": Decimal("10000"), "amount_max": Decimal("1000000"), "interest_rate": Decimal("12.0"), "disbursement_mode": "bank_loan", "description": "Collateral-free micro loans up to ₹10 Lakh"}
-            ]
-        },
-        {
-            "name": "PM Formalisation of Micro Food Processing Enterprises (PMFME)",
-            "ministry": "Ministry of Food Processing Industries",
-            "description": "Provides 35% capital subsidy up to ₹10 lakh for micro food processing units. Also supports branding, marketing, and common infrastructure.",
-            "scheme_type": "subsidy",
-            "max_benefit_inr": Decimal("1000000"),
-            "min_benefit_inr": Decimal("100000"),
-            "benefit_description": "35% capital subsidy up to ₹10 lakh + credit-linked grant",
-            "application_mode": "online",
-            "official_url": "https://pmfme.mofpi.gov.in",
-            "helpline_number": "011-23062118",
-            "target_genders": None,
-            "target_social_categories": None,
-            "target_business_types": ["food_processing"],
-            "target_business_stages": ["pre_revenue", "revenue"],
-            "max_turnover_inr": Decimal("5000000"),
-            "max_employees": 10,
-            "requires_udyam": True,
-            "documents_required": [
-                {"name": "UDYAM Registration", "mandatory": True, "format": "pdf"},
-                {"name": "FSSAI License", "mandatory": True, "format": "pdf"},
-                {"name": "Project Report", "mandatory": True, "format": "pdf"},
-                {"name": "Bank Details", "mandatory": True, "format": "pdf"}
-            ],
-            "application_steps": [
-                {"step": 1, "description": "Register on PMFME portal", "channel": "online"},
-                {"step": 2, "description": "Fill application with project details", "channel": "online"},
-                {"step": 3, "description": "Upload documents and submit", "channel": "online"}
-            ],
-            "rules": [
-                {"field_name": "target_business_types", "operator": "in", "rule_value": ["food_processing"], "is_mandatory": True, "description": "Must be in food processing or allied sector"}
-            ],
-            "benefits": [
-                {"benefit_type": "subsidy", "percentage": Decimal("35.0"), "amount_max": Decimal("1000000"), "disbursement_mode": "direct_benefit_transfer", "description": "35% credit-linked capital subsidy up to ₹10 Lakh"}
-            ]
-        },
-        {
-            "name": "Startup India Seed Fund Scheme (SISFS)",
-            "ministry": "DPIIT",
-            "description": "Provides financial assistance to startups for proof of concept, prototype development, product trials, market entry, and commercialization.",
-            "scheme_type": "grant",
-            "max_benefit_inr": Decimal("2000000"),
-            "min_benefit_inr": Decimal("100000"),
-            "benefit_description": "Up to ₹20 lakh grant for POC + up to ₹50 lakh loan for market entry",
-            "application_mode": "online",
-            "official_url": "https://seedfund.startupindia.gov.in",
-            "helpline_number": "1800-115-565",
-            "target_genders": None,
-            "target_social_categories": None,
-            "target_business_types": ["technology"],
-            "target_business_stages": ["pre_revenue", "revenue"],
-            "max_turnover_inr": Decimal("100000000"),
-            "max_employees": 100,
-            "requires_dpiit": True,
-            "documents_required": [
-                {"name": "DPIIT Recognition", "mandatory": True, "format": "pdf"},
-                {"name": "Pitch Deck", "mandatory": True, "format": "pdf"},
-                {"name": "Financial Projections", "mandatory": True, "format": "pdf"}
-            ],
-            "application_steps": [
-                {"step": 1, "description": "Apply through Startup India portal", "channel": "online"},
-                {"step": 2, "description": "Submit pitch and documents", "channel": "online"},
-                {"step": 3, "description": "Evaluation by expert panel", "channel": "online"}
-            ],
-            "rules": [
-                {"field_name": "requires_dpiit", "operator": "==", "rule_value": True, "is_mandatory": True, "description": "Must have valid DPIIT Startup Recognition"}
-            ],
-            "benefits": [
-                {"benefit_type": "grant", "amount_max": Decimal("2000000"), "disbursement_mode": "incubator_grant", "description": "Up to ₹20 Lakh POC validation grant"}
-            ]
-        },
-        {
-            "name": "CGTMSE - Credit Guarantee Fund",
-            "ministry": "Ministry of MSME",
-            "description": "Provides credit guarantee coverage to Member Lending Institutions for collateral-free credit facilities extended to MSEs. Women-led MSMEs get 90% guarantee coverage.",
-            "scheme_type": "guarantee",
-            "max_benefit_inr": Decimal("50000000"),
-            "benefit_description": "Collateral-free credit guarantee up to ₹5 crore. 90% for women-led MSMEs.",
-            "application_mode": "both",
-            "official_url": "https://www.cgtmse.in",
-            "helpline_number": "1800-180-1111",
-            "target_genders": None,
-            "target_social_categories": None,
-            "target_business_types": ["manufacturing", "service", "trading"],
-            "target_business_stages": ["revenue", "growth"],
-            "max_turnover_inr": Decimal("500000000"),
-            "max_employees": 500,
-            "requires_udyam": True,
-            "documents_required": [
-                {"name": "UDYAM Certificate", "mandatory": True, "format": "pdf"},
-                {"name": "Loan Application", "mandatory": True, "format": "pdf"}
-            ],
-            "application_steps": [
-                {"step": 1, "description": "Apply for loan at bank", "channel": "both"},
-                {"step": 2, "description": "Bank applies for CGTMSE cover", "channel": "offline"},
-                {"step": 3, "description": "Guarantee issued", "channel": "offline"}
-            ],
-            "rules": [
-                {"field_name": "requires_udyam", "operator": "==", "rule_value": True, "is_mandatory": True, "description": "Active UDYAM registration is required"}
-            ],
-            "benefits": [
-                {"benefit_type": "guarantee", "amount_max": Decimal("50000000"), "disbursement_mode": "credit_guarantee", "description": "Credit guarantee cover up to ₹5 Crore"}
-            ]
-        }
-    ]
+    try:
+        from scripts.schemes_data import ALL_SCHEMES
+    except ImportError:
+        from schemes_data import ALL_SCHEMES
 
-    for s in schemes:
+    seeded_count = 0
+    updated_count = 0
+
+    for s_raw in ALL_SCHEMES:
+        s = dict(s_raw)
         rules_data = s.pop("rules", [])
         benefits_data = s.pop("benefits", [])
 
@@ -286,9 +111,28 @@ def seed_schemes(db):
             for b in benefits_data:
                 benefit = Benefit(scheme_id=db_scheme.id, **b)
                 db.add(benefit)
+            seeded_count += 1
+        else:
+            # Update metadata
+            for k, v in s.items():
+                setattr(db_scheme, k, v)
+
+            # If no rules exist for this scheme, seed them
+            if not db_scheme.rules and rules_data:
+                for r in rules_data:
+                    rule = EligibilityRule(scheme_id=db_scheme.id, **r)
+                    db.add(rule)
+
+            # If no benefits exist for this scheme, seed them
+            if not db_scheme.benefits and benefits_data:
+                for b in benefits_data:
+                    benefit = Benefit(scheme_id=db_scheme.id, **b)
+                    db.add(benefit)
+            updated_count += 1
 
     db.commit()
-    print(f"✅ Seeded {len(schemes)} schemes with rules and benefits")
+    total = db.query(Scheme).count()
+    print(f"✅ Schemes: {seeded_count} newly seeded, {updated_count} updated. Total schemes in DB: {total}")
 
 
 def seed_csc(db):
@@ -376,6 +220,8 @@ def seed():
         seed_users(db)
         seed_schemes(db)
         seed_csc(db)
+        from scripts.seed_institutions_and_sih import seed_institutions_and_sih
+        seed_institutions_and_sih()
         print("\n🎉 All data seeded successfully!")
     except Exception as e:
         print(f"❌ Error during seed: {e}")

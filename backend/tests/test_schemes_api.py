@@ -72,3 +72,18 @@ def test_get_scheme_not_found(client, sample_schemes):
     random_id = uuid.uuid4()
     response = client.get(f"/schemes/{random_id}")
     assert response.status_code == 404
+
+
+def test_get_recommended_schemes_route(client, test_db):
+    """Ensure /schemes/recommended route is not masked by /schemes/{scheme_id}."""
+    user = User(id=uuid.uuid4(), phone="+919876599999", full_name="Rec User", is_active=True, onboarding_completed=True)
+    test_db.add(user)
+    test_db.commit()
+    token = create_access_token(data={"sub": str(user.id), "role": "user"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.get("/schemes/recommended", headers=headers)
+    # Should cleanly return 200 list (not 422 UUID parsing failure)
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+

@@ -16,14 +16,17 @@ from app.core.database import Base
 def utc_now():
     return datetime.now(timezone.utc)
 
-
+ 
 class User(Base):
     """User entity representing entrepreneurs."""
     __tablename__ = "users"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    phone = Column(String(20), unique=True, nullable=False, index=True)
+    phone = Column(String(20), unique=True, nullable=True, index=True)
     email = Column(String(255), nullable=True, index=True)
+    firebase_uid = Column(String(128), unique=True, nullable=True, index=True)
+    auth_provider = Column(String(50), default="phone", nullable=False)  # 'phone', 'google', 'google+phone'
+    avatar_url = Column(Text, nullable=True)
     full_name = Column(String(255), default="")
     gender = Column(String(50), nullable=True)
     social_category = Column(String(50), nullable=True)
@@ -359,6 +362,51 @@ class OTPVerification(Base):
     created_at = Column(DateTime, default=utc_now)
 
 
+class Institution(Base):
+    """Channel Partner & Partner Institution entity."""
+    __tablename__ = "institutions"
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False, index=True)
+    short_name = Column(String(100), nullable=True)
+    code = Column(String(50), unique=True, index=True, nullable=True)
+    institution_type = Column(String(100), nullable=True)  # SCA, PSB, RRB, NBFC-MFI, Facilitation Center, Autonomous
+    state = Column(String(100), nullable=False, index=True)
+    district = Column(String(100), nullable=False, index=True)
+    city = Column(String(100), nullable=True)
+    address = Column(Text, nullable=True)
+    website = Column(String(500), nullable=True)
+    affiliation = Column(String(255), nullable=True)
+    nirf_rank = Column(Integer, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    status = Column(String(20), default="active")
+    fund_utilization_percentage = Column(Numeric(5, 2), nullable=True)
+    available_lending_capacity_inr = Column(Numeric(14, 2), nullable=True)
+    capacity_tier = Column(String(50), default="UNVERIFIED", nullable=True)
+    gross_npa_ratio = Column(Numeric(5, 2), nullable=True)
+    net_npa_ratio = Column(Numeric(5, 2), nullable=True)
+    npa_risk_indicator = Column(String(50), default="UNKNOWN", nullable=True)
+    is_lending_halted = Column(Boolean, default=False, nullable=True)
+    is_authenticated_live = Column(Boolean, default=False, nullable=True)
+    telemetry_updated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=utc_now)
+
+
+class InstitutionRequest(Base):
+    """Request from citizen/entrepreneur to add missing channel partner/institution."""
+    __tablename__ = "institution_requests"
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    state = Column(String(100), nullable=False)
+    district = Column(String(100), nullable=False)
+    city = Column(String(100), nullable=True)
+    requested_by_email = Column(String(255), nullable=True)
+    status = Column(String(50), default="pending")
+    created_at = Column(DateTime, default=utc_now)
+
+
 __all__ = [
     "User",
     "Business",
@@ -374,5 +422,6 @@ __all__ = [
     "Conversation",
     "AuditLog",
     "SchemeBookmark",
-    "UserFeedback",
+    "Institution",
+    "InstitutionRequest",
 ]

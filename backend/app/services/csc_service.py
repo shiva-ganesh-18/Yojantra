@@ -77,13 +77,37 @@ class CSCLocatorService:
         centers.sort(key=lambda x: x["distance_km"])
         return centers[:20]
 
-    def find_by_district(self, state: str, district: str) -> List[CSCCenter]:
-        """Find CSCs in a specific district."""
-        return self.db.query(CSCCenter).filter(
-            CSCCenter.state.ilike(state),
-            CSCCenter.district.ilike(district),
-            CSCCenter.is_active == True
-        ).all()
+    def find_by_district(
+        self, 
+        state: Optional[str] = None, 
+        district: Optional[str] = None,
+        query: Optional[str] = None
+    ) -> List[CSCCenter]:
+        """Find CSCs by district, state, or search text across name/block/address."""
+        db_query = self.db.query(CSCCenter).filter(CSCCenter.is_active == True)
+        
+        if state and state.strip():
+            db_query = db_query.filter(CSCCenter.state.ilike(f"%{state.strip()}%"))
+            
+        if district and district.strip():
+            d_clean = district.strip()
+            db_query = db_query.filter(
+                (CSCCenter.district.ilike(f"%{d_clean}%")) |
+                (CSCCenter.block.ilike(f"%{d_clean}%")) |
+                (CSCCenter.address.ilike(f"%{d_clean}%"))
+            )
+            
+        if query and query.strip():
+            q_clean = query.strip()
+            db_query = db_query.filter(
+                (CSCCenter.name.ilike(f"%{q_clean}%")) |
+                (CSCCenter.district.ilike(f"%{q_clean}%")) |
+                (CSCCenter.block.ilike(f"%{q_clean}%")) |
+                (CSCCenter.address.ilike(f"%{q_clean}%")) |
+                (CSCCenter.pincode.ilike(f"%{q_clean}%"))
+            )
+            
+        return db_query.all()
 
     def seed_sample_data(self):
         """Seed sample CSC data for testing."""

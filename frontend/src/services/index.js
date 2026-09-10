@@ -9,3 +9,7 @@ export { default as chatService } from './chatService';
 export { default as cscService } from './cscService';
 export { default as notificationService } from './notificationService';
 export { default as adminService } from './adminService';
+export { default as locationsService } from './locationsService';
+export { default as institutionsService } from './institutionsService';
+export { default as integrationService } from './integrationService';
+export { default as firebaseService } from './firebaseService';

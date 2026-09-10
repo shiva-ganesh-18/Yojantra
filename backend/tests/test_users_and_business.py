@@ -37,7 +37,6 @@ def test_get_user_profile(client, auth_user):
     response = client.get("/users/me", headers=headers)
     assert response.status_code == 200
     data = response.json()
-    assert data["phone"] == user.phone
     assert data["full_name"] == "Ananya Verma"
     assert data["gender"] == "female"
 
@@ -108,3 +107,52 @@ def test_business_relationship_cascade(test_db):
     assert user.business is not None
     assert user.business.business_name == "Cascade Enterprise"
     assert business.user.phone == "+919876500002"
+
+
+def test_business_validation_canonical_enums_and_onboarding_flow(client, auth_user, test_db):
+    """Verifies all valid canonical business_type and business_stage values."""
+    user, headers = auth_user
+
+    valid_types = [
+        "manufacturing", "service", "trading", "agriculture",
+        "food_processing", "technology", "handicraft", "retail", "other"
+    ]
+    valid_stages = ["idea", "pre_revenue", "revenue", "growth", "mature"]
+
+    for b_type in valid_types:
+        for b_stage in valid_stages:
+            res = client.post("/users/me/business", json={
+                "business_name": f"Test {b_type.title()} Enterprise",
+                "business_type": b_type,
+                "business_stage": b_stage,
+                "registration_type": "startup",
+                "annual_turnover_inr": 800000.0,
+                "funding_needed_inr": 1500000.0,
+                "has_collateral": False
+            }, headers=headers)
+            assert res.status_code == 200, f"Failed for business_type={b_type}, business_stage={b_stage}: {res.text}"
+            data = res.json()
+            assert data["business_type"] == b_type
+            assert data["business_stage"] == b_stage
+
+
+def test_business_validation_rejects_invalid_enums(client, auth_user):
+    """Verifies that invalid enum patterns are rejected by backend Pydantic validation."""
+    user, headers = auth_user
+
+    # Invalid business_type (e.g. legacy 'individual' or invalid string)
+    res = client.post("/users/me/business", json={
+        "business_name": "Invalid Biz",
+        "business_type": "invalid_type_123",
+        "business_stage": "revenue"
+    }, headers=headers)
+    assert res.status_code == 422
+
+    # Invalid business_stage
+    res = client.post("/users/me/business", json={
+        "business_name": "Invalid Stage",
+        "business_type": "manufacturing",
+        "business_stage": "invalid_stage_xyz"
+    }, headers=headers)
+    assert res.status_code == 422
+

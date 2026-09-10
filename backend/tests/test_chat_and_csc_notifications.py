@@ -117,3 +117,35 @@ def test_notifications_workflow(test_db, client, auth_user):
     count_res2 = client.get("/notifications/unread-count", headers=headers)
     assert count_res2.status_code == 200
     assert count_res2.json()["unread_count"] == 0
+
+    # 6. Verify FCM Token Registration
+    fcm_reg_res = client.post(
+        "/notifications/register-token",
+        json={"fcm_token": "fcm-device-sample-token-abc123xyz456"},
+        headers=headers
+    )
+    assert fcm_reg_res.status_code == 200
+    assert fcm_reg_res.json()["status"] == "success"
+
+    # 7. Verify Test Push Dispatch
+    send_res = client.post(
+        "/notifications/send-test",
+        json={
+            "type": "application_status_update",
+            "title": "PMEGP Application Approved",
+            "body": "Your PMEGP subsidy sanction has been issued."
+        },
+        headers=headers
+    )
+    assert send_res.status_code == 200
+    assert send_res.json()["status"] == "dispatched"
+
+    # 8. Verify Firebase operational status endpoint
+    fb_status_res = client.get("/notifications/firebase/status")
+    assert fb_status_res.status_code == 200
+    fb_status = fb_status_res.json()
+    assert "authentication" in fb_status
+    assert "cloud_messaging_fcm" in fb_status
+    assert "app_check" in fb_status
+    assert "analytics" in fb_status
+    assert fb_status["analytics"]["sensitive_data_protection"] == "STRICT (Aadhaar, PAN, OTP, passwords stripped at source)"

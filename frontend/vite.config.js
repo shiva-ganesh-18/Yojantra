@@ -8,9 +8,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'SchemeMatch AI',
-        short_name: 'SchemeMatch',
-        theme_color: '#0f766e',
+        name: 'Yojantra',
+        short_name: 'Yojantra',
+        description: 'Your intelligent path to government schemes',
+        theme_color: '#0b192c',
         background_color: '#ffffff',
         display: 'standalone',
         scope: '/',
@@ -38,7 +39,31 @@ export default defineConfig({
           },
         ],
       },
+      devOptions: {
+        enabled: false,
+      },
     })
   ],
-  server: { port: 3000, proxy: { '/api': 'http://localhost:8000' } }
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-ui': ['lucide-react'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth'],
+          'vendor-query': ['react-query', 'axios', 'zustand'],
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600
+  },
+  server: {
+    port: process.env.PORT ? parseInt(process.env.PORT, 10) : 5173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: true,
+      }
+    }
+  }
 });

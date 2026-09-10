@@ -33,10 +33,34 @@ schemematch.db
 
 # Environment & Secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+!**/.env.example
+
+# Firebase & Cloud Credentials
+*firebase*.json
+*service-account*.json
+*service_account*.json
+firebase-service-account.json
+credentials.json
+client_secret*.json
+google-services.json
+GoogleService-Info.plist
+
+# Keys, Certs, and Secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.secret
+secrets/
 
 # Node / Frontend
 node_modules/

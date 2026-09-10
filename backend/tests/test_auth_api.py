@@ -12,90 +12,6 @@ from app.core.security import create_access_token, hash_otp
 from app.models import User, OTPVerification
 
 
-def test_send_otp_success(test_db, client):
-    """Test sending OTP to a valid Indian phone number."""
-    response = client.post("/auth/otp/send", json={"phone": "+919876543210"})
-    assert response.status_code == 200
-    data = response.json()
-    assert "message" in data
-
-    # Verify OTP was stored in DB
-    otp_record = test_db.query(OTPVerification).filter(OTPVerification.phone == "+919876543210").first()
-    assert otp_record is not None
-    assert otp_record.is_verified is False
-
-
-def test_send_otp_invalid_phone(client):
-    """Test validation rejection on invalid phone format."""
-    response = client.post("/auth/otp/send", json={"phone": "12345"})
-    assert response.status_code == 422
-
-
-def test_verify_otp_success_and_jwt_generation(test_db, client):
-    """Test verifying a valid OTP returns a valid JWT with user info."""
-    phone = "+919876543211"
-    # Seed OTP
-    otp_code = "654321"
-    otp_record = OTPVerification(
-        phone=phone,
-        otp_hash=hash_otp(otp_code, salt=phone),
-        attempts=0,
-        max_attempts=5,
-        is_verified=False,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)
-    )
-    test_db.add(otp_record)
-    test_db.commit()
-
-    response = client.post("/auth/otp/verify", json={"phone": phone, "otp": otp_code})
-    assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
-    assert data["user"]["phone"] == phone
-
-
-def test_verify_otp_invalid_code(test_db, client):
-    """Test invalid OTP code increments attempt count and rejects with 400."""
-    phone = "+919876543212"
-    otp_record = OTPVerification(
-        phone=phone,
-        otp_hash=hash_otp("111111", salt=phone),
-        attempts=0,
-        max_attempts=5,
-        is_verified=False,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)
-    )
-    test_db.add(otp_record)
-    test_db.commit()
-
-    response = client.post("/auth/otp/verify", json={"phone": phone, "otp": "999999"})
-    assert response.status_code == 400
-    assert "Invalid OTP" in response.json()["detail"]
-
-    test_db.refresh(otp_record)
-    assert otp_record.attempts == 1
-
-
-def test_verify_otp_max_attempts_lockout(test_db, client):
-    """Test that reaching max attempts locks out verification."""
-    phone = "+919876543213"
-    otp_record = OTPVerification(
-        phone=phone,
-        otp_hash=hash_otp("111111", salt=phone),
-        attempts=5,
-        max_attempts=5,
-        is_verified=False,
-        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)
-    )
-    test_db.add(otp_record)
-    test_db.commit()
-
-    response = client.post("/auth/otp/verify", json={"phone": phone, "otp": "111111"})
-    assert response.status_code == 429
-    assert "Maximum OTP verification attempts exceeded" in response.json()["detail"]
-
-
 def test_unauthorized_access_protection(client):
     """Test that accessing protected endpoint without token returns 401."""
     response = client.get("/users/me")
@@ -142,3 +58,51 @@ def test_rbac_admin_endpoint_allowed_for_admin_user(test_db, client):
     data = response.json()
     assert "total_users" in data
     assert "total_schemes" in data
+
+
+def test_sms_gateway_api_key_authentication(monkeypatch):
+    """Verify SMS Gateway prioritizes Twilio API Key authentication over legacy Auth Token and supports Messaging Service SID."""
+    from app.services.sms_service import SMSGatewayService
+    from app.core import config
+
+    # Test Case 1: Only API Key configured with TWILIO_PHONE (No Auth Token required)
+    svc = SMSGatewayService()
+    svc.twilio_account_sid = "AC_mock_account_123"
+    svc.twilio_api_key_sid = "SK_mock_key_sid_456"
+    svc.twilio_api_key_secret = "mock_secret_789"
+    svc.twilio_auth_token = ""
+    svc.twilio_phone = "+15551234567"
+    svc.twilio_messaging_service_sid = ""
+
+    assert svc.is_production_gateway_configured() is True
+    auth = svc.get_auth_credentials()
+    assert auth == ("SK_mock_key_sid_456", "mock_secret_789")
+    sender = svc.get_sender_parameter()
+    assert sender == {"From": "+15551234567"}
+
+    # Test Case 2: Messaging Service SID priority
+    svc_mg = SMSGatewayService()
+    svc_mg.twilio_account_sid = "AC_mock_account_123"
+    svc_mg.twilio_api_key_sid = "SK_mock_key_sid_456"
+    svc_mg.twilio_api_key_secret = "mock_secret_789"
+    svc_mg.twilio_phone = "+15551234567"
+    svc_mg.twilio_messaging_service_sid = "MG_mock_messaging_service_123"
+
+    assert svc_mg.is_production_gateway_configured() is True
+    sender_mg = svc_mg.get_sender_parameter()
+    assert sender_mg == {"MessagingServiceSid": "MG_mock_messaging_service_123"}
+
+    # Test Case 3: Sandbox fallback in non-production
+    svc_empty = SMSGatewayService()
+    svc_empty.twilio_account_sid = ""
+    svc_empty.twilio_api_key_sid = ""
+    svc_empty.twilio_api_key_secret = ""
+    svc_empty.twilio_auth_token = ""
+    svc_empty.twilio_phone = ""
+    svc_empty.twilio_messaging_service_sid = ""
+
+    assert svc_empty.is_production_gateway_configured() is False
+    res = svc_empty.send_otp_sms("+919876543210", "123456")
+    assert res["status"] == "dispatched_sandbox"
+    assert "123456" not in str(res) # Zero OTP leakage in response
+

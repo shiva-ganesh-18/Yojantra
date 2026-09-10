@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import 'leaflet/dist/leaflet.css';
 
 @tailwind base;
 @tailwind components;
@@ -12,16 +13,40 @@
   }
 
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, 'Noto Sans', 'Segoe UI', Roboto, sans-serif;
     -webkit-tap-highlight-color: transparent;
     background-color: #F8FAFC;
     color: #0F253E;
     letter-spacing: -0.01em;
+    text-rendering: optimizeLegibility;
   }
 
-  /* Accessible focus states */
+  /* Accessible focus rings meeting WCAG 2.1 AA */
   *:focus-visible {
-    outline: 2px solid #1E3A5F;
+    outline: 2px solid #EA580C;
+    outline-offset: 2px;
+  }
+
+  /* Skip Link for keyboard navigation */
+  .skip-to-content {
+    position: absolute;
+    top: -100px;
+    left: 1rem;
+    background: #020617;
+    color: #FFFFFF;
+    padding: 0.75rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border-radius: 0.75rem;
+    border: 2px solid #EA580C;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+    transition: top 0.15s ease-in-out;
+  }
+
+  .skip-to-content:focus {
+    top: 1rem;
+    outline: 3px solid #FDBA74;
     outline-offset: 2px;
   }
 }

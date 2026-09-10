@@ -8,7 +8,8 @@ import SkeletonLoader from '../components/SkeletonLoader';
 
 export default function CSCLocator() {
   const { api, user } = useAuthStore();
-  const [searchQuery, setSearchQuery] = useState(user?.district || 'Patna');
+  const initialDistrict = user?.district || user?.city || '';
+  const [searchQuery, setSearchQuery] = useState(initialDistrict);
   const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -18,28 +19,29 @@ export default function CSCLocator() {
     setLoading(true);
     setError('');
     try {
-      const res = await api().get('/csc/by-district', {
-        params: { state: user?.state || 'Bihar', district: query }
-      });
+      const trimmed = (query || '').trim();
+      const params = {};
+      if (trimmed) {
+        params.district = trimmed;
+        params.q = trimmed;
+      }
+      if (user?.state && (!trimmed || trimmed.toLowerCase() === user?.district?.toLowerCase())) {
+        params.state = user.state;
+      }
+      const res = await api().get('/csc/by-district', { params });
       const data = res.data?.centers || res.data || [];
       setCenters(Array.isArray(data) ? data : []);
     } catch (e) {
-      // If error, search nearby fallback with coordinates
-      try {
-        const nearbyRes = await api().get('/csc/nearby', {
-          params: { lat: 25.5941, lng: 85.1376, radius_km: 15 }
-        });
-        setCenters(nearbyRes.data?.centers || []);
-      } catch (err2) {
-        setError('Unable to load CSC centers. Please check your district name or internet connection.');
-      }
+      console.error('CSC search error:', e);
+      setError('Unable to load CSC centers for the selected district.');
+      setCenters([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCentersByDistrict(user?.district || 'Patna');
+    fetchCentersByDistrict(initialDistrict);
   }, []);
 
   const handleUseMyLocation = () => {
@@ -72,9 +74,13 @@ export default function CSCLocator() {
     );
   };
 
-  const openGoogleMaps = (lat, lng, name) => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-    window.open(url, '_blank');
+  const openGoogleMaps = (lat, lng, name, address) => {
+    if (lat && lng) {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+    } else {
+      const query = encodeURIComponent(`${name} ${address || ''} Common Service Center India`);
+      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+    }
   };
 
   return (
@@ -154,12 +160,40 @@ export default function CSCLocator() {
             <SkeletonLoader.Card lines={3} />
           </div>
         ) : centers.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 border border-slate-200 shadow-gov text-center space-y-2">
-            <MapPin size={48} className="mx-auto text-slate-300" />
-            <h3 className="text-base font-bold text-gov-navy-950">No CSC centers found in this area</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Try searching for a neighboring district or use the GPS button to detect centers within 15 km.
-            </p>
+          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-gov text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+              <Building2 size={32} />
+            </div>
+            <div className="max-w-md mx-auto space-y-2">
+              <h3 className="text-lg font-bold text-gov-navy-950">
+                Verified CSC Data Unavailable for this District
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                No verified Common Service Centers are currently indexed in our verified digital registry for <strong className="text-gov-navy-900">"{searchQuery || 'this location'}"</strong>.
+              </p>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                To prevent misdirecting citizen applicants with unverified locations, please use the official Digital India CSC Locator portal or contact the national toll-free helpline.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <a
+                href="https://findmycsc.nic.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2.5 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm transition-all"
+              >
+                <span>Official FindMyCSC Portal</span>
+                <ExternalLink size={14} />
+              </a>
+              <a
+                href="tel:180030003468"
+                className="px-5 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold flex items-center gap-2 transition-colors"
+              >
+                <Phone size={14} className="text-gov-emerald-600" />
+                <span>Helpline: 1800-3000-3468</span>
+              </a>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -230,7 +264,7 @@ export default function CSCLocator() {
                     )}
 
                     <button
-                      onClick={() => openGoogleMaps(c.latitude || 25.5941, c.longitude || 85.1376, c.name)}
+                      onClick={() => openGoogleMaps(c.latitude, c.longitude, c.name, c.address)}
                       className="px-4 py-2 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
                     >
                       <span>Get Directions</span>

@@ -6,7 +6,9 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.schemas import SchemeMatchResponse, MatchRequest
+from app.schemas import (
+    SchemeMatchResponse, MatchRequest, SchemeCompareRequest, SchemeCompareResponse
+)
 from app.models import User, UserSchemeMatch
 from app.services.matching_engine import get_matching_engine
 
@@ -23,6 +25,18 @@ def match_schemes(
     engine = get_matching_engine(db)
     matches = engine.match_user(user.id, refresh=request.refresh)
     return matches
+
+
+@router.post("/compare", response_model=SchemeCompareResponse)
+def compare_schemes(
+    request: SchemeCompareRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate comparative matrix for 2-4 schemes for current user."""
+    engine = get_matching_engine(db)
+    comparison = engine.compare_schemes(user.id, request.scheme_ids)
+    return comparison
 
 
 @router.get("/recommended", response_model=List[SchemeMatchResponse])

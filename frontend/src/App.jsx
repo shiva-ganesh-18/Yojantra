@@ -14,19 +14,29 @@ import CSCLocator from './pages/CSCLocator';
 import Notifications from './pages/Notifications';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
+import Institutions from './pages/Institutions';
 
 function App() {
   const { token, user } = useAuthStore();
 
-  if (!token) return <Login />;
+  if (!token) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
+  }
 
-  // Role-based admin access check
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  // Role-based admin & partner officer access check
+  const isOfficerOrAdmin = ['admin', 'super_admin', 'partner_officer', 'nodal_officer'].includes(user?.role);
 
   return (
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/schemes" element={<Schemes />} />
         <Route path="/matches" element={<Matches />} />
@@ -34,9 +44,13 @@ function App() {
         <Route path="/documents" element={<Documents />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/csc" element={<CSCLocator />} />
+        <Route path="/csc-locator" element={<CSCLocator />} />
+        <Route path="/institutions" element={<Institutions />} />
+        <Route path="/partners" element={<Institutions />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/profile" element={<Profile />} />
-        {isAdmin && <Route path="/admin" element={<AdminDashboard />} />}
+
+        {isOfficerOrAdmin && <Route path="/admin" element={<AdminDashboard />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

@@ -52,29 +52,23 @@ def test_full_phase1_e2e_user_journey(test_db, client):
     test_db.commit()
 
     # =========================================================================
-    # 1. LOGIN & OTP
+    # 1. LOGIN VIA GOOGLE AUTH (FIREBASE ID TOKEN)
     # =========================================================================
-    user_phone = "+919876543219"
-    otp_code = "123456"
-
-    # Send OTP
-    send_res = client.post("/auth/otp/send", json={"phone": user_phone})
-    assert send_res.status_code == 200
-    assert send_res.json()["phone"] == user_phone
-
-    # Ensure known OTP hash for verification
-    otp_rec = test_db.query(OTPVerification).filter(OTPVerification.phone == user_phone).first()
-    assert otp_rec is not None
-    otp_rec.otp_hash = hash_otp(otp_code, salt=user_phone)
-    test_db.commit()
-
-    # Verify OTP
-    verify_res = client.post("/auth/otp/verify", json={"phone": user_phone, "otp": otp_code})
-    assert verify_res.status_code == 200
-    auth_data = verify_res.json()
-    token = auth_data["access_token"]
-    assert token is not None
-    headers = {"Authorization": f"Bearer {token}"}
+    from unittest.mock import patch
+    mock_payload = {
+        "uid": "firebase_uid_e2e_journey",
+        "email": "priya.sharma@example.com",
+        "email_verified": True,
+        "name": "Priya Sharma",
+        "picture": "https://example.com/priya.jpg",
+    }
+    with patch("app.routers.auth.verify_firebase_token", return_value=mock_payload):
+        login_res = client.post("/auth/google", json={"id_token": "mock-e2e-google-id-token"})
+        assert login_res.status_code == 200
+        auth_data = login_res.json()
+        token = auth_data["access_token"]
+        assert token is not None
+        headers = {"Authorization": f"Bearer {token}"}
 
     # =========================================================================
     # 2. ONBOARDING & PROFILE SETUP

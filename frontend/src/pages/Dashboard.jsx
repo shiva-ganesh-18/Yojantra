@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from 'react-query';
 import { useAuthStore } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Sparkles, CheckCircle2, ArrowRight, ShieldCheck, 
@@ -12,6 +13,7 @@ import SkeletonLoader from '../components/SkeletonLoader';
 
 export default function Dashboard() {
   const { api, user } = useAuthStore();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [selectedScheme, setSelectedScheme] = useState(null);
 
@@ -30,6 +32,11 @@ export default function Dashboard() {
     api().get('/documents/my-documents').then(r => r.data || [])
   );
 
+  // 4. Fetch document readiness
+  const { data: docReadiness } = useQuery('docReadiness', () =>
+    api().get('/documents/readiness').then(r => r.data).catch(() => null)
+  );
+
   // If user hasn't finished onboarding, show focused guidance
   if (!user?.onboarding_completed) {
     return (
@@ -39,17 +46,17 @@ export default function Dashboard() {
         </div>
         <div className="space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold text-gov-navy-950">
-            Let's Set Up Your Profile
+            {t('onboard_title', 'Let\'s Set Up Your Profile')}
           </h2>
           <p className="text-sm text-slate-500 max-w-md mx-auto">
-            Answer 5 simple questions about your business, funding requirements, and social category so SchemeMatch AI can calculate your eligibility.
+            {t('onboard_subtitle', 'Answer a few simple questions about your business, funding requirements, and social category so Yojantra can calculate your eligibility.')}
           </p>
         </div>
 
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-slate-600 max-w-md mx-auto text-left space-y-2">
           <div className="flex items-center gap-2 text-gov-navy-900 font-semibold">
             <ShieldCheck size={16} className="text-gov-emerald-600" />
-            <span>Why Complete Your Profile?</span>
+            <span>{t('onboard_step1_title', 'Basic Details & Social Category')}</span>
           </div>
           <p className="text-[11px] text-slate-500">
             Central ministries provide distinct quotas and subsidies (up to 35%) for SC/ST/OBC, women founders, and rural micro-enterprises.
@@ -60,7 +67,7 @@ export default function Dashboard() {
           to="/onboarding"
           className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gov-saffron-600 hover:bg-gov-saffron-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all"
         >
-          <span>Start Onboarding</span>
+          <span>{t('onboard_title', 'Start Onboarding')}</span>
           <ArrowRight size={17} />
         </Link>
       </div>
@@ -69,8 +76,12 @@ export default function Dashboard() {
 
   // Greeting based on hour
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const userName = user?.full_name ? user.full_name.split(' ')[0] : 'Citizen';
+  const greeting = hour < 12 
+    ? t('dash_greeting_morning', 'Good morning') 
+    : hour < 17 
+      ? t('dash_greeting_afternoon', 'Good afternoon') 
+      : t('dash_greeting_evening', 'Good evening');
+  const userName = user?.full_name ? user.full_name.split(' ')[0] : t('guest_citizen', 'Citizen');
 
   // Counts for Journey Tracker
   const verifiedDocsCount = documents.filter(d => d.verification_status === 'verified').length;
@@ -90,13 +101,13 @@ export default function Dashboard() {
           <div className="space-y-2 max-w-xl">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-gov-saffron-500/20 text-gov-saffron-300 border border-gov-saffron-500/30 uppercase tracking-wider">
               <Sparkles size={13} />
-              AI Matching Engine Active
+              {t('dash_hero_tag', 'AI Matching Engine Active')}
             </span>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-snug">
               {greeting}, {userName}
             </h1>
             <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-              Let's find the government support available for your business. We matched your profile against 200+ central & state schemes.
+              {t('dash_hero_subtitle', 'Let\'s find the government support available for your business. We matched your profile against 200+ central & state schemes.')}
             </p>
           </div>
 
@@ -105,7 +116,7 @@ export default function Dashboard() {
               to="/matches"
               className="px-6 py-3.5 rounded-xl bg-gov-saffron-600 hover:bg-gov-saffron-700 active:bg-gov-saffron-800 text-white font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
             >
-              <span>Find My Schemes</span>
+              <span>{t('dash_btn_view_matches', 'View AI Recommendations')}</span>
               <ArrowRight size={16} />
             </Link>
             <Link
@@ -113,7 +124,7 @@ export default function Dashboard() {
               className="px-5 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-sm border border-white/20 transition-colors flex items-center justify-center gap-2"
             >
               <MessageSquare size={16} />
-              <span>Ask AI Assistant</span>
+              <span>{t('nav_ai_chat', 'Ask AI Assistant')}</span>
             </Link>
           </div>
         </div>
@@ -124,87 +135,117 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              End-to-End Workflow
+              {t('dash_journey_title', 'Your Scheme Access Journey')}
             </h2>
             <p className="text-lg font-bold text-gov-navy-950 mt-0.5">
-              Your Scheme Journey
+              {t('dash_journey_title', 'End-to-End Workflow')}
             </p>
           </div>
           <span className="text-xs font-semibold text-gov-emerald-700 bg-gov-emerald-50 px-2.5 py-1 rounded-full border border-gov-emerald-200">
-            Real-Time Status
+            {t('inst_tab_active', 'Active')}
           </span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {/* Step 1: Profile */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
-            <span className="text-xs font-semibold text-slate-400">1. Profile</span>
+            <span className="text-xs font-semibold text-slate-400">{t('dash_step_profile', '1. Profile')}</span>
             <div className="my-2">
-              <p className="text-sm font-bold text-gov-navy-950 flex items-center gap-1 text-gov-emerald-700">
-                <CheckCircle2 size={16} />
-                <span>Completed</span>
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">{user?.district}, {user?.state}</p>
+              {(() => {
+                const completionPct = user?.profile_completion_percentage ?? (user?.phone ? 85 : 65);
+                const hasPhone = !!user?.phone;
+                const isComplete = completionPct >= 100 && hasPhone;
+                return (
+                  <>
+                    <p className={`text-sm font-bold flex items-center gap-1 ${isComplete ? 'text-gov-emerald-700' : 'text-amber-600'}`}>
+                      {isComplete ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                      <span>
+                        {isComplete 
+                          ? t('docs_verified', 'Completed') 
+                          : (!hasPhone ? `${completionPct}% (Phone Missing)` : `${completionPct}% Complete`)}
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {[user?.district, user?.state].filter(Boolean).join(', ') || 'Location Pending'}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
             <Link to="/profile" className="text-[11px] font-bold text-gov-navy-800 hover:text-gov-saffron-700 flex items-center gap-0.5 mt-1">
-              View Profile &rarr;
+              {user?.phone ? t('btn_view_details', 'View Profile') : 'Complete Profile'} &rarr;
             </Link>
           </div>
 
           {/* Step 2: AI Matching */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
-            <span className="text-xs font-semibold text-slate-400">2. AI Matching</span>
+            <span className="text-xs font-semibold text-slate-400">{t('dash_step_matching', '2. AI Matching')}</span>
             <div className="my-2">
               <p className="text-sm font-bold text-gov-navy-950 flex items-center gap-1 text-gov-emerald-700">
                 <CheckCircle2 size={16} />
-                <span>{matches.length} schemes</span>
+                <span>{matches.length} {t('nav_govt_schemes', 'Schemes')}</span>
               </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">Calculated eligibility</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">{t('matches_eligible_tag', 'Eligible')}</p>
             </div>
             <Link to="/matches" className="text-[11px] font-bold text-gov-navy-800 hover:text-gov-saffron-700 flex items-center gap-0.5 mt-1">
-              Explore Matches &rarr;
+              {t('matches_filter_all', 'Explore Matches')} &rarr;
             </Link>
           </div>
 
           {/* Step 3: Documents */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
-            <span className="text-xs font-semibold text-slate-400">3. Documents</span>
+            <span className="text-xs font-semibold text-slate-400">{t('dash_step_docs', '3. Documents')}</span>
             <div className="my-2">
-              <p className="text-sm font-bold text-gov-navy-950">
-                {verifiedDocsCount} / {totalRequiredDocs} Ready
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">OCR Auto-Verification</p>
+              {(() => {
+                const totalReq = docReadiness?.total_required ?? Math.max(3, documents.length);
+                const totalUp = docReadiness?.total_uploaded ?? documents.length;
+                const missingMandatory = docReadiness?.missing_mandatory_count ?? (totalUp >= 3 ? 0 : 3 - totalUp);
+                const isReady = docReadiness ? docReadiness.is_ready_to_apply : (missingMandatory === 0 && totalUp > 0);
+                return (
+                  <>
+                    <p className={`text-sm font-bold flex items-center gap-1 ${isReady ? 'text-gov-emerald-700' : 'text-amber-600'}`}>
+                      {isReady ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                      <span>{totalUp} / {totalReq} {t('docs_tab_all', 'Ready')}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {missingMandatory > 0 
+                        ? `${missingMandatory} mandatory missing`
+                        : t('docs_ocr_verified', 'OCR Format & Data Extraction')}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
             <Link to="/documents" className="text-[11px] font-bold text-gov-navy-800 hover:text-gov-saffron-700 flex items-center gap-0.5 mt-1">
-              Upload Missing &rarr;
+              {(docReadiness?.missing_mandatory_count ?? 0) > 0 ? t('btn_upload', 'Upload Missing') : 'Manage Docs'} &rarr;
             </Link>
           </div>
 
           {/* Step 4: Applications */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
-            <span className="text-xs font-semibold text-slate-400">4. Applications</span>
+            <span className="text-xs font-semibold text-slate-400">{t('dash_step_apps', '4. Applications')}</span>
             <div className="my-2">
               <p className="text-sm font-bold text-gov-navy-950">
-                {activeAppsCount} In Progress
+                {activeAppsCount} {t('apps_status_submitted', 'In Progress')}
               </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">{approvedCount} Approved</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">{approvedCount} {t('apps_status_approved', 'Approved')}</p>
             </div>
             <Link to="/applications" className="text-[11px] font-bold text-gov-navy-800 hover:text-gov-saffron-700 flex items-center gap-0.5 mt-1">
-              View Tracking &rarr;
+              {t('nav_applications', 'View Tracking')} &rarr;
             </Link>
           </div>
 
           {/* Step 5: Benefits */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between col-span-2 md:col-span-1">
-            <span className="text-xs font-semibold text-slate-400">5. Track Benefits</span>
+            <span className="text-xs font-semibold text-slate-400">{t('dash_step_benefits', '5. Track Benefits')}</span>
             <div className="my-2">
               <p className="text-sm font-bold text-gov-navy-950">
-                Direct Benefit
+                {t('schemes_filter_subsidy', 'Direct Benefit')}
               </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">DBT Bank Account</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">{t('apps_step_sanction', 'DBT Bank Account')}</p>
             </div>
             <Link to="/applications" className="text-[11px] font-bold text-gov-navy-800 hover:text-gov-saffron-700 flex items-center gap-0.5 mt-1">
-              View Status &rarr;
+              {t('btn_view_details', 'View Status')} &rarr;
             </Link>
           </div>
         </div>
@@ -215,17 +256,17 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Personalized Recommendations
+              {t('matches_title', 'Personalized Recommendations')}
             </h2>
             <p className="text-xl font-bold text-gov-navy-950">
-              Your Best Matches
+              {t('dash_stat_matches', 'Your Best Matches')}
             </p>
           </div>
           <Link 
             to="/matches" 
             className="text-xs sm:text-sm font-bold text-gov-saffron-700 hover:text-gov-saffron-800 flex items-center gap-1"
           >
-            <span>View All ({matches.length})</span>
+            <span>{t('matches_filter_all', 'View All')} ({matches.length})</span>
             <ChevronRight size={16} />
           </Link>
         </div>
@@ -238,15 +279,15 @@ export default function Dashboard() {
         ) : matches.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-gov">
             <Sparkles size={40} className="mx-auto text-slate-300 mb-2" />
-            <p className="text-sm font-bold text-gov-navy-950">No matches found yet</p>
+            <p className="text-sm font-bold text-gov-navy-950">{t('matches_no_results', 'No matches found yet')}</p>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              We need a bit more information about your business to calculate scheme qualification scores.
+              {t('matches_no_results_sub', 'We need a bit more information about your business to calculate scheme qualification scores.')}
             </p>
             <Link 
               to="/onboarding" 
               className="mt-4 inline-block px-5 py-2.5 rounded-xl bg-gov-navy-950 text-white text-xs font-bold"
             >
-              Complete My Profile
+              {t('onboard_title', 'Complete My Profile')}
             </Link>
           </div>
         ) : (
@@ -274,7 +315,7 @@ export default function Dashboard() {
                       <div className={`px-2.5 py-1 rounded-xl font-extrabold text-xs flex-shrink-0 ${
                         isHigh ? 'bg-gov-emerald-50 text-gov-emerald-700 border border-gov-emerald-200' : 'bg-gov-saffron-50 text-gov-saffron-700 border border-gov-saffron-200'
                       }`}>
-                        {score}% Match
+                        {score}% {t('matches_badge_match', 'Match')}
                       </div>
                     </div>
 
@@ -282,7 +323,7 @@ export default function Dashboard() {
                     <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs text-slate-700">
                       <p className="font-semibold text-gov-navy-900 flex items-center gap-1 mb-1">
                         <CheckCircle2 size={13} className="text-gov-emerald-600" />
-                        <span>Why You Match:</span>
+                        <span>{t('matches_why_match', 'Why You Match')}:</span>
                       </p>
                       <p className="text-[11px] text-slate-600 leading-snug line-clamp-2">
                         {m.ai_explanation || "You appear eligible because your enterprise category, location, and turnover align with main ministry criteria."}
@@ -293,7 +334,7 @@ export default function Dashboard() {
                     <div className="flex items-start gap-2 text-xs">
                       <IndianRupee size={15} className="text-gov-saffron-600 flex-shrink-0 mt-0.5" />
                       <p className="text-slate-700 font-medium line-clamp-2 text-[11px]">
-                        <strong>Benefit:</strong> {m.benefit_description || 'Capital subsidy and collateral-free credit facilitation'}
+                        <strong>{t('schemes_subsidy_rate', 'Benefit')}:</strong> {m.benefit_description || 'Capital subsidy and collateral-free credit facilitation'}
                       </p>
                     </div>
                   </div>
@@ -304,13 +345,13 @@ export default function Dashboard() {
                       onClick={() => setSelectedScheme(m)}
                       className="text-xs font-bold text-gov-navy-900 hover:text-gov-saffron-700 transition-colors"
                     >
-                      View Details
+                      {t('btn_view_details', 'View Details')}
                     </button>
                     <button
                       onClick={() => setSelectedScheme(m)}
                       className="px-3.5 py-2 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white text-xs font-semibold shadow-sm transition-all"
                     >
-                      Check Eligibility
+                      {t('btn_apply_scheme', 'Check Eligibility')}
                     </button>
                   </div>
                 </div>
@@ -330,8 +371,8 @@ export default function Dashboard() {
             <MessageSquare size={24} />
           </div>
           <div>
-            <p className="font-bold text-sm text-gov-navy-950">AI Assistant</p>
-            <p className="text-xs text-slate-500 mt-0.5">Ask questions about eligibility & rules</p>
+            <p className="font-bold text-sm text-gov-navy-950">{t('nav_ai_chat', 'AI Assistant')}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('dash_action_chat_desc', 'Ask questions about eligibility & rules')}</p>
           </div>
         </Link>
 
@@ -343,8 +384,8 @@ export default function Dashboard() {
             <MapPin size={24} />
           </div>
           <div>
-            <p className="font-bold text-sm text-gov-navy-950">Locate CSC Center</p>
-            <p className="text-xs text-slate-500 mt-0.5">Find biometric & scanning help nearby</p>
+            <p className="font-bold text-sm text-gov-navy-950">{t('nav_csc_locator', 'Locate CSC Center')}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('dash_action_partners_desc', 'Find SCAs, Lead Banks, RRBs & CSCs')}</p>
           </div>
         </Link>
 
@@ -356,8 +397,8 @@ export default function Dashboard() {
             <FolderUp size={24} />
           </div>
           <div>
-            <p className="font-bold text-sm text-gov-navy-950">Document Center</p>
-            <p className="text-xs text-slate-500 mt-0.5">Instant OCR scan for Aadhaar & PAN</p>
+            <p className="font-bold text-sm text-gov-navy-950">{t('nav_documents', 'Document Center')}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('dash_action_docs_desc', 'Instant OCR scan for Aadhaar & PAN')}</p>
           </div>
         </Link>
       </div>

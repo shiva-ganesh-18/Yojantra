@@ -7,6 +7,19 @@ import {
   MapPin, Check, FileCheck
 } from 'lucide-react';
 import offlineStorage from '../utils/offlineStorage';
+import StateSelector from '../components/StateSelector';
+import DistrictSelector from '../components/DistrictSelector';
+import { 
+  BUSINESS_TYPES, 
+  BUSINESS_STAGES, 
+  REGISTRATION_TYPES, 
+  normalizeBusinessType, 
+  normalizeBusinessStage, 
+  normalizeRegistrationType,
+  getBusinessTypeLabel,
+  getBusinessStageLabel,
+  getRegistrationTypeLabel
+} from '../utils/businessMappings';
 
 const STEPS = [
   { id: 'identity', stepNumber: 1, label: 'About You', title: 'Personal Demographics', icon: User },
@@ -17,27 +30,29 @@ const STEPS = [
 ];
 
 export default function Onboarding() {
+  const { user } = useAuthStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const [form, setForm] = useState({
     // Step 1: Personal
-    full_name: '',
-    gender: 'male',
-    social_category: 'obc',
-    date_of_birth: '1995-05-15',
-    literacy_level: 'secondary',
-    state: 'Bihar',
-    district: 'Patna',
-    is_rural: true,
-    preferred_language: 'hi',
+    full_name: user?.full_name || '',
+    gender: user?.gender || 'male',
+    social_category: user?.social_category || 'obc',
+    date_of_birth: user?.date_of_birth || '1995-05-15',
+    literacy_level: user?.literacy_level || 'secondary',
+    state: user?.state || '',
+    district: user?.district || '',
+    is_rural: user?.is_rural ?? true,
+    preferred_language: user?.preferred_language || 'hi',
 
     // Step 2: Business
     business_name: '',
-    business_type: 'individual', // individual, startup, msme, self_employed
-    business_stage: 'operating', // idea, starting, operating, expanding
-    sector: 'manufacturing', // manufacturing, services, retail, agriculture, handicrafts
+    registration_type: 'individual', // individual, startup, msme, self_employed, partnership, pvt_ltd
+    business_type: 'manufacturing', // manufacturing, service, trading, agriculture, food_processing, technology, handicraft, retail, other
+    business_stage: 'revenue', // idea, pre_revenue, revenue, growth, mature
+    sector: 'manufacturing',
 
     // Step 3: Financial
     annual_turnover_inr: '500000',
@@ -55,7 +70,15 @@ export default function Onboarding() {
   useEffect(() => {
     const draft = offlineStorage.getOnboardingDraft();
     if (draft) {
-      setForm((prev) => ({ ...prev, ...draft }));
+      // Normalize any legacy draft values to canonical backend constraints
+      const canonicalDraft = {
+        ...draft,
+        business_type: normalizeBusinessType(draft.business_type || draft.sector),
+        business_stage: normalizeBusinessStage(draft.business_stage),
+        registration_type: normalizeRegistrationType(draft.registration_type || (['individual', 'startup', 'msme', 'self_employed'].includes(draft.business_type) ? draft.business_type : 'individual')),
+        sector: normalizeBusinessType(draft.sector || draft.business_type),
+      };
+      setForm((prev) => ({ ...prev, ...canonicalDraft }));
     }
   }, []);
 
@@ -115,12 +138,18 @@ export default function Onboarding() {
         setUser(userRes.data);
       }
 
+      // Canonicalize enum values before sending to backend
+      const canonicalBusinessType = normalizeBusinessType(form.business_type);
+      const canonicalBusinessStage = normalizeBusinessStage(form.business_stage);
+      const canonicalRegistrationType = normalizeRegistrationType(form.registration_type);
+
       // 2. Save enterprise profile
       await api().post('/users/me/business', {
         business_name: form.business_name,
-        business_type: form.business_type,
-        business_stage: form.business_stage,
-        sector: form.sector || null,
+        business_type: canonicalBusinessType,
+        business_stage: canonicalBusinessStage,
+        registration_type: canonicalRegistrationType,
+        sector: canonicalBusinessType,
         annual_turnover_inr: parseFloat(form.annual_turnover_inr) || 0,
         num_employees: parseInt(form.num_employees) || 0,
         funding_needed_inr: parseFloat(form.funding_needed_inr) || 0,
@@ -131,7 +160,16 @@ export default function Onboarding() {
       offlineStorage.clearOnboardingDraft();
       navigate('/matches');
     } catch (err) {
-      setError(err.message || 'Failed to save profile. Please check your network connection.');
+      const serverDetail = err.response?.data?.detail;
+      let errorMsg = 'Failed to save profile. Please check your details.';
+      if (Array.isArray(serverDetail)) {
+        errorMsg = serverDetail.map(d => `${d.loc ? d.loc.join('.') : 'Field'}: ${d.msg}`).join(', ');
+      } else if (typeof serverDetail === 'string') {
+        errorMsg = serverDetail;
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -277,39 +315,23 @@ export default function Onboarding() {
 
             {/* Location & Area */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  State
-                </label>
-                <select
-                  value={form.state}
-                  onChange={(e) => update('state', e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-gov-navy-900/10"
-                >
-                  <option value="Bihar">Bihar</option>
-                  <option value="Uttar Pradesh">Uttar Pradesh</option>
-                  <option value="Maharashtra">Maharashtra</option>
-                  <option value="Madhya Pradesh">Madhya Pradesh</option>
-                  <option value="Rajasthan">Rajasthan</option>
-                  <option value="Gujarat">Gujarat</option>
-                  <option value="Tamil Nadu">Tamil Nadu</option>
-                  <option value="West Bengal">West Bengal</option>
-                  <option value="Karnataka">Karnataka</option>
-                </select>
-              </div>
+              <StateSelector
+                selectedState={form.state}
+                onSelectState={(val) => {
+                  update('state', val);
+                  update('district', '');
+                }}
+                label="State / UT"
+                required={true}
+              />
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  District
-                </label>
-                <input
-                  type="text"
-                  value={form.district}
-                  onChange={(e) => update('district', e.target.value)}
-                  placeholder="e.g. Patna / Varanasi"
-                  className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gov-navy-900/10"
-                />
-              </div>
+              <DistrictSelector
+                state={form.state}
+                selectedDistrict={form.district}
+                onSelectDistrict={(val) => update('district', val)}
+                label="District"
+                required={true}
+              />
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -391,22 +413,20 @@ export default function Onboarding() {
               />
             </div>
 
-            {/* Business Type Large Clickable Cards */}
+            {/* Business Type / Sector - Canonical Backend Values */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Business Legal Structure
+                Primary Business / Activity Type *
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { value: 'individual', label: 'Individual', desc: 'Sole proprietor / Solo artisan' },
-                  { value: 'startup', label: 'Startup', desc: 'DPIIT recognized or tech venture' },
-                  { value: 'msme', label: 'MSME', desc: 'Registered micro/small enterprise' },
-                  { value: 'self_employed', label: 'Self Employed', desc: 'Freelancer / Service provider' },
-                ].map((type) => (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {BUSINESS_TYPES.map((type) => (
                   <button
                     key={type.value}
                     type="button"
-                    onClick={() => update('business_type', type.value)}
+                    onClick={() => {
+                      update('business_type', type.value);
+                      update('sector', type.value);
+                    }}
                     className={`p-3.5 rounded-2xl border text-left transition-all ${
                       form.business_type === type.value
                         ? 'border-gov-navy-950 bg-gov-navy-950 text-white shadow-md'
@@ -422,18 +442,13 @@ export default function Onboarding() {
               </div>
             </div>
 
-            {/* Business Stage */}
+            {/* Business Stage - Canonical Backend Values */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Current Operational Stage
+                Current Operational Stage *
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {[
-                  { value: 'idea', label: 'Idea Stage', desc: 'Pre-venture planning' },
-                  { value: 'starting', label: 'Starting Up', desc: '0 - 12 months in operation' },
-                  { value: 'operating', label: 'Operating', desc: 'Established stable workflow' },
-                  { value: 'expanding', label: 'Expanding', desc: 'Scaling to new markets' },
-                ].map((stage) => (
+              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                {BUSINESS_STAGES.map((stage) => (
                   <button
                     key={stage.value}
                     type="button"
@@ -451,31 +466,25 @@ export default function Onboarding() {
               </div>
             </div>
 
-            {/* Sector / Industry */}
+            {/* Legal Registration Structure */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Primary Industry Sector
+                Legal Registration Structure
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {[
-                  { value: 'manufacturing', label: 'Manufacturing & Processing' },
-                  { value: 'services', label: 'Services & Consultancy' },
-                  { value: 'retail', label: 'Trading & Retail Store' },
-                  { value: 'agriculture', label: 'Agri-Business & Dairy' },
-                  { value: 'handicrafts', label: 'Handicrafts & Handlooms' },
-                  { value: 'technology', label: 'IT & Digital Solutions' },
-                ].map((sec) => (
+                {REGISTRATION_TYPES.map((reg) => (
                   <button
-                    key={sec.value}
+                    key={reg.value}
                     type="button"
-                    onClick={() => update('sector', sec.value)}
-                    className={`p-3 rounded-xl border text-left text-xs font-bold transition-all ${
-                      form.sector === sec.value
-                        ? 'border-gov-navy-900 bg-gov-navy-900 text-white'
+                    onClick={() => update('registration_type', reg.value)}
+                    className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                      form.registration_type === reg.value
+                        ? 'border-gov-emerald-700 bg-gov-emerald-50 text-gov-emerald-950 font-bold ring-1 ring-gov-emerald-600'
                         : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 text-slate-700'
                     }`}
                   >
-                    {sec.label}
+                    <p className="font-bold">{reg.label}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{reg.desc}</p>
                   </button>
                 ))}
               </div>
@@ -589,7 +598,7 @@ export default function Onboarding() {
           <div className="space-y-6">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Preferred Interface Language
+                Preferred Interface Language (12 Indian Languages)
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
@@ -597,6 +606,14 @@ export default function Onboarding() {
                   { code: 'en', label: 'English' },
                   { code: 'mr', label: 'मराठी (Marathi)' },
                   { code: 'ta', label: 'தமிழ் (Tamil)' },
+                  { code: 'te', label: 'తెలుగు (Telugu)' },
+                  { code: 'bn', label: 'বাংলা (Bengali)' },
+                  { code: 'gu', label: 'ગુજરાતી (Gujarati)' },
+                  { code: 'kn', label: 'ಕನ್ನಡ (Kannada)' },
+                  { code: 'ml', label: 'മലയാളം (Malayalam)' },
+                  { code: 'pa', label: 'ਪੰਜਾਬੀ (Punjabi)' },
+                  { code: 'or', label: 'ଓଡ଼ିଆ (Odia)' },
+                  { code: 'as', label: 'অসমীয়া (Assamese)' },
                 ].map((lang) => (
                   <button
                     key={lang.code}
@@ -680,7 +697,12 @@ export default function Onboarding() {
                 <div className="bg-white p-3 rounded-xl border border-slate-200/80">
                   <span className="text-slate-400 block uppercase font-medium">Enterprise</span>
                   <span className="text-sm font-bold text-gov-navy-950">{form.business_name}</span>
-                  <span className="text-slate-500 block mt-0.5 capitalize">{form.business_type.replace('_', ' ')} • {form.sector}</span>
+                  <span className="text-slate-500 block mt-0.5">
+                    {getBusinessTypeLabel(form.business_type)} • {getBusinessStageLabel(form.business_stage)}
+                  </span>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">
+                    Structure: {getRegistrationTypeLabel(form.registration_type)}
+                  </span>
                 </div>
 
                 <div className="bg-white p-3 rounded-xl border border-slate-200/80">

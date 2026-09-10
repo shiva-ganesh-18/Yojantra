@@ -1,40 +1,48 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from 'react-query';
 import { useAuthStore } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 import { 
   FolderUp, FileText, CheckCircle2, AlertTriangle, Clock, 
-  XCircle, ShieldCheck, Download, Plus, ArrowRight, Check
+  XCircle, ShieldCheck, Download, Plus, X, ArrowRight, Check,
+  Sparkles, Layers, Target, Info, CheckCircle, RefreshCw, Trash2
 } from 'lucide-react';
 import DocumentUploader from '../components/DocumentUploader';
 import SkeletonLoader from '../components/SkeletonLoader';
-
-const CORE_DOCUMENTS = [
-  { id: 'aadhaar', name: 'Aadhaar Card', desc: 'UIDAI biometric identity', required: true },
-  { id: 'pan', name: 'PAN Card', desc: 'Permanent Account Number', required: true },
-  { id: 'bank_passbook', name: 'Bank Passbook / Statement', desc: 'Direct Benefit Transfer (DBT)', required: true },
-  { id: 'udyam', name: 'UDYAM Registration', desc: 'Ministry of MSME registration', required: false },
-  { id: 'income_certificate', name: 'Income Certificate', desc: 'Tahsildar/SDM issued certificate', required: true },
-  { id: 'caste_certificate', name: 'Caste Certificate', desc: 'SC/ST/OBC verification', required: false },
-];
+import documentService from '../services/documentService';
+import schemeService from '../services/schemeService';
 
 export default function Documents() {
-  const { api } = useAuthStore();
+  const { user } = useAuthStore();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const [showUploader, setShowUploader] = useState(false);
   const [selectedTypeForUpload, setSelectedTypeForUpload] = useState('');
+  const [selectedSchemeId, setSelectedSchemeId] = useState('');
+  const [autoFillSuccess, setAutoFillSuccess] = useState(null);
 
-  const { data: uploadedDocs = [], isLoading } = useQuery('my_documents', () =>
-    api().get('/documents/my-documents').then(r => r.data || [])
+  // Fetch schemes list for dynamic scheme checklist selector
+  const { data: schemesData } = useQuery('schemes_dropdown', async () => {
+    try {
+      const res = await schemeService.searchSchemes({ page: 1, page_size: 50 });
+      return Array.isArray(res) ? res : (res?.items || []);
+    } catch {
+      return [];
+    }
+  });
+
+  // Fetch user uploaded documents
+  const { data: uploadedDocs = [], isLoading: isDocsLoading } = useQuery(
+    'my_documents', 
+    () => documentService.listMyDocuments()
   );
 
-  const getDocStatus = (docId) => {
-    const found = uploadedDocs.find(d => d.doc_type === docId);
-    if (!found) return { label: 'Not Uploaded', color: 'bg-slate-100 text-slate-500 border-slate-200', state: 'missing' };
-    if (found.verification_status === 'verified') return { label: 'Verified', color: 'bg-gov-emerald-50 text-gov-emerald-700 border-gov-emerald-200', state: 'verified' };
-    if (found.verification_status === 'pending') return { label: 'Needs Review', color: 'bg-amber-50 text-amber-800 border-amber-200', state: 'review' };
-    if (found.verification_status === 'rejected') return { label: 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', state: 'rejected' };
-    return { label: 'Uploaded', color: 'bg-blue-50 text-blue-700 border-blue-200', state: 'uploaded' };
-  };
+  // Fetch dynamic readiness score and checklist
+  const { data: readinessData, isLoading: isReadinessLoading } = useQuery(
+    ['document_readiness', selectedSchemeId],
+    () => documentService.getReadiness(selectedSchemeId || null),
+    { keepPreviousData: true }
+  );
 
   const openUploadFor = (type) => {
     setSelectedTypeForUpload(type);
@@ -42,77 +50,228 @@ export default function Documents() {
     window.scrollTo({ top: 400, behavior: 'smooth' });
   };
 
+  const handle1ClickAutoFill = async () => {
+    try {
+      const res = await documentService.autoFillProfile();
+      setAutoFillSuccess(res.message);
+      queryClient.invalidateQueries('my_documents');
+      setTimeout(() => setAutoFillSuccess(null), 5000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDelete = async (docId) => {
+    if (window.confirm("Are you sure you want to delete this document?")) {
+      await documentService.deleteDocument(docId);
+      queryClient.invalidateQueries('my_documents');
+      queryClient.invalidateQueries('document_readiness');
+    }
+  };
+
+  const readinessScore = readinessData?.readiness_score ?? 0;
+  const isReady = readinessData?.is_ready_to_apply ?? false;
+  const checklist = readinessData?.checklist || [];
+
   return (
     <div className="space-y-6 text-left">
       
-      {/* Header Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-gov">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
+      {/* Header Banner & Readiness Score Meter */}
+      <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-gov">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <div className="flex items-center gap-2">
               <span className="p-2 rounded-xl bg-gov-saffron-100 text-gov-saffron-700">
-                <FolderUp size={20} />
+                <FolderUp size={22} />
               </span>
               <h1 className="text-2xl font-extrabold text-gov-navy-950">
-                Your Documents
+                {t('docs_title', 'Document Vault & Readiness Checker')}
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500">
-              Keep your documents ready for instant auto-filling and 1-click scheme applications.
+              {t('docs_subtitle', 'Upload once, apply anywhere. Optical Character Recognition (OCR) extracts your verified identity & enterprise credentials while keeping Aadhaar/PAN secure.')}
             </p>
+            
+            {/* Scheme Selector Dropdown */}
+            <div className="pt-2 flex items-center gap-2">
+              <span className="text-xs font-bold text-gov-navy-950 whitespace-nowrap">{t('docs_checklist_title', 'Checklist For Scheme')}:</span>
+              <select
+                value={selectedSchemeId}
+                onChange={(e) => setSelectedSchemeId(e.target.value)}
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-gov-navy-950 focus:outline-none focus:ring-2 focus:ring-gov-navy-900/10 focus:border-gov-navy-950"
+              >
+                <option value="">-- {t('docs_tab_all', 'General Enterprise Readiness (All Core Docs)')} --</option>
+                {(schemesData || []).map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.ministry})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <button
-            onClick={() => { setSelectedTypeForUpload(''); setShowUploader(!showUploader); }}
-            className="self-start sm:self-auto px-5 py-2.5 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shadow-sm"
-          >
-            <Plus size={16} />
-            <span>{showUploader ? 'Close Uploader' : 'Upload New Document'}</span>
-          </button>
+          {/* Readiness Score Progress Card */}
+          <div className="bg-gradient-to-br from-gov-navy-950 to-gov-navy-900 text-white p-5 rounded-2xl flex items-center gap-5 sm:min-w-[320px] shadow-md">
+            <div className="relative w-18 h-18 flex items-center justify-center flex-shrink-0">
+              <svg className="w-18 h-18 -rotate-90" viewBox="0 0 36 36">
+                <path
+                  className="text-white/10"
+                  strokeWidth="3.8"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <path
+                  className={readinessScore >= 70 ? 'text-gov-emerald-400' : 'text-gov-saffron-400'}
+                  strokeDasharray={`${readinessScore}, 100`}
+                  strokeWidth="3.8"
+                  strokeLinecap="round"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+              </svg>
+              <span className="absolute text-base font-extrabold">{readinessScore}%</span>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full ${
+                  isReady ? 'bg-gov-emerald-500/20 text-gov-emerald-300 border border-gov-emerald-400/30' : 'bg-gov-saffron-500/20 text-gov-saffron-300 border border-gov-saffron-400/30'
+                }`}>
+                  {isReady ? `✓ ${t('docs_readiness_score', 'Ready to Apply')}` : `⚠ ${t('docs_missing', 'Action Needed')}`}
+                </span>
+              </div>
+              <h4 className="text-sm font-bold">{t('docs_readiness_score', 'Document Readiness')}</h4>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                {readinessData?.total_uploaded || 0} of {readinessData?.total_required || 0} {t('nav_documents', 'documents uploaded')}
+                {readinessData?.missing_mandatory_count > 0 && (
+                  <span className="text-amber-300 font-bold block sm:inline sm:ml-1">
+                    ({readinessData.missing_mandatory_count} mandatory missing)
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Readiness Checklist Grid (MANDATORY REQUIREMENT) */}
+        {/* Dynamic Scheme Checklist Grid */}
         <div className="mt-6 pt-5 border-t border-slate-100">
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
-            Application Readiness Status
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {CORE_DOCUMENTS.map((doc) => {
-              const status = getDocStatus(doc.id);
-              return (
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {readinessData?.scheme_name ? `${t('docs_checklist_title', 'Checklist')}: ${readinessData.scheme_name}` : t('docs_checklist_title', 'Document Checklist')}
+            </p>
+            <span className="text-[11px] text-slate-500 font-medium">
+              {readinessData?.readiness_summary}
+            </span>
+          </div>
+
+          {isReadinessLoading ? (
+            <SkeletonLoader.Table rows={2} cols={3} />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {checklist.map((item) => (
                 <div 
-                  key={doc.id}
-                  className="bg-slate-50/70 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3"
+                  key={item.doc_type}
+                  className={`border rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-all ${
+                    item.is_uploaded 
+                      ? 'bg-gov-emerald-50/40 border-gov-emerald-200' 
+                      : item.is_mandatory 
+                      ? 'bg-amber-50/40 border-amber-200' 
+                      : 'bg-slate-50/70 border-slate-200'
+                  }`}
                 >
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center flex-shrink-0 text-slate-500 font-bold">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className={`w-9 h-9 rounded-xl border flex items-center justify-center flex-shrink-0 font-bold mt-0.5 ${
+                      item.is_uploaded 
+                        ? 'bg-gov-emerald-100 text-gov-emerald-800 border-gov-emerald-300' 
+                        : 'bg-white text-slate-500 border-slate-200'
+                    }`}>
                       <FileText size={17} />
                     </div>
-                    <div className="overflow-hidden">
-                      <h4 className="text-xs font-bold text-gov-navy-950 truncate">{doc.name}</h4>
-                      <p className="text-[10px] text-slate-400 truncate">{doc.desc}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h4 className="text-xs font-bold text-gov-navy-950 leading-tight">{item.name}</h4>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border flex-shrink-0 ${
+                          item.is_scheme_specific
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                        }`}>
+                          {item.category || (item.is_scheme_specific ? 'Scheme-Specific' : 'General Enterprise')}
+                        </span>
+                        {item.is_mandatory && (
+                          <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200/60 px-1 py-0.2 rounded flex-shrink-0">
+                            Mandatory
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">{item.description}</p>
                     </div>
                   </div>
 
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.color}`}>
-                      {status.state === 'verified' && '✓ '}
-                      {status.state === 'missing' && doc.required && '⚠ '}
-                      {status.label}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      item.is_verified
+                        ? 'bg-gov-emerald-50 text-gov-emerald-700 border-gov-emerald-200'
+                        : item.is_uploaded
+                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                        : item.is_mandatory 
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : 'bg-slate-100 text-slate-500 border-slate-200'
+                    }`}>
+                      {item.is_verified 
+                        ? `✓ ${t('docs_verified', 'Verified')}` 
+                        : item.is_uploaded 
+                        ? `✓ ${t('docs_verified', 'Uploaded')}` 
+                        : t('docs_missing', 'Missing')}
                     </span>
-                    {status.state === 'missing' && (
+                    {!item.is_uploaded && (
                       <button
-                        onClick={() => openUploadFor(doc.id)}
+                        onClick={() => openUploadFor(item.doc_type)}
                         className="text-[10px] font-bold text-gov-saffron-700 hover:underline"
                       >
-                        Upload &rarr;
+                        {t('btn_upload', 'Upload')} &rarr;
                       </button>
                     )}
                   </div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+          )}
+
+          {/* Action Row */}
+          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <ShieldCheck size={16} className="text-gov-emerald-600 flex-shrink-0" />
+              <span>DPDP Act 2023 Compliant: Sensitive numbers masked. Connect with DigiLocker or accredited channel partners for official e-KYC.</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handle1ClickAutoFill}
+                disabled={uploadedDocs.length === 0}
+                className="px-4 py-2 rounded-xl bg-gov-saffron-50 hover:bg-gov-saffron-100 text-gov-saffron-800 text-xs font-bold transition-all flex items-center gap-1.5 border border-gov-saffron-200 disabled:opacity-50"
+              >
+                <Sparkles size={14} className="text-gov-saffron-600" />
+                <span>{t('docs_auto_fill', 'Auto-Fill Profile from OCR')}</span>
+              </button>
+
+              <button
+                onClick={() => { setSelectedTypeForUpload(''); setShowUploader(!showUploader); }}
+                className="px-4 py-2 rounded-xl bg-gov-navy-950 hover:bg-gov-navy-900 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                {showUploader ? <X size={15} /> : <Plus size={15} />}
+                <span>{showUploader ? t('btn_close', 'Close') : t('btn_upload', 'Upload Document')}</span>
+              </button>
+            </div>
           </div>
+
+          {autoFillSuccess && (
+            <div className="mt-3 p-3 bg-gov-emerald-50 border border-gov-emerald-200 rounded-xl text-xs font-bold text-gov-emerald-800 flex items-center gap-2">
+              <CheckCircle size={16} />
+              <span>{autoFillSuccess}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -122,19 +281,20 @@ export default function Documents() {
           defaultDocType={selectedTypeForUpload}
           onUploadComplete={() => {
             queryClient.invalidateQueries('my_documents');
+            queryClient.invalidateQueries('document_readiness');
           }}
         />
       )}
 
-      {/* Uploaded Documents Archive */}
+      {/* Uploaded Documents Vault Archive */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-gov space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
             <h3 className="font-bold text-base text-gov-navy-950">
-              Verified Documents Archive
+              Encrypted Document Vault
             </h3>
             <p className="text-xs text-slate-500">
-              Encrypted digital vault linked to your SchemeMatch AI citizen profile.
+              Tamper-tested digital repository linked to your Yojantra entrepreneur profile.
             </p>
           </div>
           <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
@@ -142,14 +302,14 @@ export default function Documents() {
           </span>
         </div>
 
-        {isLoading ? (
+        {isDocsLoading ? (
           <SkeletonLoader.Table rows={3} cols={3} />
         ) : uploadedDocs.length === 0 ? (
           <div className="py-10 text-center space-y-2">
             <FileText size={40} className="mx-auto text-slate-300" />
             <p className="text-sm font-bold text-gov-navy-950">No documents uploaded yet</p>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Upload your documents to speed up scheme eligibility checks and auto-fill loan forms.
+              Upload your Aadhaar, PAN, Bank Passbook, or UDYAM certificate to automatically unlock 1-click scheme matching and profile auto-fill.
             </p>
             <button
               onClick={() => setShowUploader(true)}
@@ -170,33 +330,48 @@ export default function Documents() {
                     <FileText size={20} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-gov-navy-950 capitalize">
-                      {doc.doc_type?.replace('_', ' ')}
-                    </h4>
-                    <p className="text-xs text-slate-400">
-                      Uploaded on {new Date(doc.created_at).toLocaleDateString()} • Format: {doc.file_format?.toUpperCase()}
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-gov-navy-950 capitalize">
+                        {doc.doc_type?.replace('_', ' ')}
+                      </h4>
+                      {doc.masked_number && (
+                        <span className="text-[11px] font-mono font-bold text-gov-navy-900 bg-slate-100 px-2 py-0.5 rounded">
+                          {doc.masked_number}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Uploaded on {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : 'Recently'} • Format: {doc.file_format?.toUpperCase()}
                     </p>
+                    {doc.duplicate_warning && (
+                      <p className="text-[11px] text-amber-700 font-semibold flex items-center gap-1 mt-1">
+                        <AlertTriangle size={12} />
+                        <span>{doc.duplicate_warning}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 self-end sm:self-auto">
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full">
+                    {doc.verification_tier || 'Heuristic OCR'}
+                  </span>
+
                   <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
                     doc.verification_status === 'verified'
                       ? 'bg-gov-emerald-50 text-gov-emerald-700 border-gov-emerald-200'
-                      : doc.verification_status === 'pending'
-                      ? 'bg-amber-50 text-amber-800 border-amber-200'
-                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
                   }`}>
-                    {doc.verification_status === 'verified' && '✓ Verified'}
-                    {doc.verification_status === 'pending' && '⏳ Processing OCR'}
-                    {doc.verification_status === 'rejected' && '✕ Action Needed'}
+                    {doc.verification_status === 'verified' ? '✓ OCR Parsed' : '⏳ Pending'}
                   </span>
 
-                  {doc.ocr_preview && (
-                    <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-1 rounded-lg font-mono hidden md:inline">
-                      OCR Extracted
-                    </span>
-                  )}
+                  <button
+                    onClick={() => handleDelete(doc.id)}
+                    aria-label="Delete document"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -207,3 +382,4 @@ export default function Documents() {
     </div>
   );
 }
+

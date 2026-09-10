@@ -1,34 +1,134 @@
-import React, { useState } from 'react';
-import { useQuery } from 'react-query';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from 'react-query';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../hooks/useAuth';
+import { useLanguage } from '../hooks/useLanguage';
 import { 
   Search, Filter, Building2, Calendar, ExternalLink, 
-  IndianRupee, ChevronRight, Sparkles, ArrowRight, ShieldCheck 
+  IndianRupee, ChevronRight, Sparkles, ArrowRight, ShieldCheck,
+  CheckCircle2, AlertCircle, X
 } from 'lucide-react';
 import SchemeDetailModal from '../components/SchemeDetailModal';
 import SkeletonLoader from '../components/SkeletonLoader';
 
 export default function Schemes() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { api } = useAuthStore();
-  const [search, setSearch] = useState('');
+  const { t } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') || '');
   const [filter, setFilter] = useState('');
   const [selectedScheme, setSelectedScheme] = useState(null);
+
+  // Honor deep-links from global search (SearchCommand navigates to /schemes?q=...).
+  useEffect(() => {
+    const q = searchParams.get('q') || '';
+    if (q !== search) setSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Keep ?q= in sync when the user types (replace to avoid history spam).
+  useEffect(() => {
+    const current = searchParams.get('q') || '';
+    if (search !== current) {
+      const next = new URLSearchParams(searchParams);
+      if (search) next.set('q', search);
+      else next.delete('q');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  // Application submission state
+  const [applyingSchemeId, setApplyingSchemeId] = useState(null);
+  const [feedbackToast, setFeedbackToast] = useState(null); // { type: 'success' | 'error', message: string }
 
   const { data: schemes = [], isLoading } = useQuery(['schemes_browse', search, filter], () =>
     api().get('/schemes', { params: { q: search, scheme_type: filter } }).then(r => r.data || [])
   );
 
+  const handleApplyScheme = async (schemeId) => {
+    if (applyingSchemeId) return; // Prevent duplicate clicks
+    setApplyingSchemeId(schemeId);
+    setFeedbackToast(null);
+
+    try {
+      await api().post('/applications', { scheme_id: schemeId });
+      setFeedbackToast({
+        type: 'success',
+        message: 'Application submitted successfully.'
+      });
+      queryClient.invalidateQueries('applications_list');
+      
+      // Close modal if open
+      setSelectedScheme(null);
+
+      // Navigate to /applications after brief feedback delay
+      setTimeout(() => {
+        navigate('/applications');
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to submit application:', err);
+      const detail = err.response?.data?.detail ?? err.details?.detail;
+      const errorMsg = typeof detail === 'string'
+        ? detail
+        : (detail?.message || (typeof err.message === 'string' ? err.message : null) || 'Failed to submit application. Please try again.');
+      
+      setFeedbackToast({
+        type: 'error',
+        message: errorMsg
+      });
+      setTimeout(() => {
+        setFeedbackToast((prev) => (prev?.type === 'error' ? null : prev));
+      }, 5000);
+    } finally {
+      setApplyingSchemeId(null);
+    }
+  };
+
   const filters = [
-    { value: '', label: 'All Schemes' },
-    { value: 'loan', label: 'Bank Loans' },
-    { value: 'subsidy', label: 'Capital Subsidies' },
-    { value: 'grant', label: 'Grants & Assistance' },
-    { value: 'guarantee', label: 'Credit Guarantees' },
+    { value: '', label: t('schemes_filter_all', 'All Schemes') },
+    { value: 'loan', label: t('schemes_filter_loan', 'Bank Loans') },
+    { value: 'subsidy', label: t('schemes_filter_subsidy', 'Capital Subsidies') },
+    { value: 'grant', label: t('schemes_filter_grant', 'Grants & Assistance') },
+    { value: 'guarantee', label: t('schemes_filter_guarantee', 'Credit Guarantees') },
   ];
 
   return (
-    <div className="space-y-6 text-left">
+    <div className="space-y-6 text-left relative pb-20">
       
+      {/* Toast Notification */}
+      {feedbackToast && (
+        <div 
+          className={`fixed top-6 right-6 z-50 max-w-md p-4 rounded-2xl shadow-2xl border flex items-start gap-3 transition-all animate-in fade-in slide-in-from-top-4 duration-300 ${
+            feedbackToast.type === 'success'
+              ? 'bg-gov-emerald-900 text-white border-gov-emerald-700'
+              : 'bg-red-900 text-white border-red-700'
+          }`}
+        >
+          {feedbackToast.type === 'success' ? (
+            <CheckCircle2 className="w-5 h-5 text-gov-emerald-300 flex-shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-red-300 flex-shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1 pr-2">
+            <p className="text-sm font-bold">
+              {feedbackToast.type === 'success' ? 'Success' : 'Submission Error'}
+            </p>
+            <p className="text-xs text-slate-200 mt-0.5 leading-relaxed">
+              {feedbackToast.message}
+            </p>
+          </div>
+          <button
+            onClick={() => setFeedbackToast(null)}
+            className="text-white/60 hover:text-white p-1 rounded-lg hover:bg-white/10"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-gov">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -38,15 +138,15 @@ export default function Schemes() {
                 <Building2 size={20} />
               </span>
               <h1 className="text-2xl font-extrabold text-gov-navy-950">
-                National Scheme Directory
+                {t('schemes_title', 'National Scheme Directory')}
               </h1>
             </div>
             <p className="text-xs sm:text-sm text-slate-500">
-              Browse official central and state government schemes, guidelines, subsidy rates, and nodal ministries.
+              {t('schemes_subtitle', 'Browse official central and state government schemes, guidelines, subsidy rates, and nodal ministries.')}
             </p>
           </div>
           <span className="self-start sm:self-auto text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-            {schemes.length} Active Schemes Indexed
+            {schemes.length} {t('schemes_indexed', 'Active Schemes Indexed')}
           </span>
         </div>
 
@@ -57,7 +157,7 @@ export default function Schemes() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by scheme name, ministry, subsidy, or sector (e.g., PMEGP, Mudra, Women)..."
+            placeholder={t('schemes_search_placeholder', 'Search by scheme name, ministry, subsidy, or sector (e.g., PMEGP, Mudra, Women)...')}
             className="w-full pl-11 pr-4 py-3.5 border border-slate-300 rounded-2xl text-sm sm:text-base text-slate-900 bg-slate-50/50 focus:bg-white focus:border-gov-navy-950 focus:ring-2 focus:ring-gov-navy-900/10 focus:outline-none transition-all"
           />
         </div>
@@ -91,15 +191,15 @@ export default function Schemes() {
       ) : schemes.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 border border-slate-200 shadow-gov text-center">
           <Building2 size={48} className="mx-auto text-slate-300 mb-3" />
-          <h3 className="text-base font-bold text-gov-navy-950">No schemes found</h3>
+          <h3 className="text-base font-bold text-gov-navy-950">{t('schemes_no_schemes', 'No schemes found')}</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            We couldn't find any schemes matching "{search}". Try searching for broader terms like "Loan", "MSME", or "Subsidy".
+            {t('schemes_no_schemes_sub', 'We couldn\'t find any schemes matching your search. Try searching for broader terms like "Loan", "MSME", or "Subsidy".')}
           </p>
           <button
             onClick={() => { setSearch(''); setFilter(''); }}
             className="mt-4 px-5 py-2.5 rounded-xl bg-gov-navy-950 text-white text-xs font-bold"
           >
-            Clear Search & Filters
+            {t('btn_clear', 'Clear Search & Filters')}
           </button>
         </div>
       ) : (
@@ -133,7 +233,7 @@ export default function Schemes() {
                   <div className="flex items-start gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                     <IndianRupee size={15} className="text-gov-saffron-600 flex-shrink-0 mt-0.5" />
                     <p className="text-slate-800 text-[11px] font-medium leading-snug">
-                      <strong>Benefit:</strong> {scheme.benefit_description}
+                      <strong>{t('schemes_subsidy_rate', 'Benefit')}:</strong> {scheme.benefit_description}
                     </p>
                   </div>
                 )}
@@ -141,7 +241,7 @@ export default function Schemes() {
                 {scheme.application_deadline && (
                   <div className="flex items-center gap-1.5 text-[11px] text-red-600 font-medium">
                     <Calendar size={13} />
-                    <span>Deadline: {new Date(scheme.application_deadline).toLocaleDateString()}</span>
+                    <span>{t('schemes_deadline', 'Deadline')}: {new Date(scheme.application_deadline).toLocaleDateString()}</span>
                   </div>
                 )}
               </div>
@@ -151,7 +251,7 @@ export default function Schemes() {
                   onClick={() => setSelectedScheme(scheme)}
                   className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-gov-navy-950 text-xs font-bold transition-colors"
                 >
-                  View Scheme Details
+                  {t('btn_view_details', 'View Scheme Details')}
                 </button>
 
                 <div className="flex items-center gap-1.5">
@@ -171,7 +271,7 @@ export default function Schemes() {
                     onClick={() => setSelectedScheme(scheme)}
                     className="px-4 py-2 rounded-xl bg-gov-saffron-600 hover:bg-gov-saffron-700 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-1"
                   >
-                    <span>Check Eligibility</span>
+                    <span>{t('btn_apply_scheme', 'Check Eligibility')}</span>
                     <ArrowRight size={14} />
                   </button>
                 </div>
@@ -187,9 +287,7 @@ export default function Schemes() {
           scheme={selectedScheme}
           isOpen={!!selectedScheme}
           onClose={() => setSelectedScheme(null)}
-          onApply={async (id) => {
-            await api().post('/applications', { scheme_id: id });
-          }}
+          onApply={handleApplyScheme}
         />
       )}
 

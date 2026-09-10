@@ -11,6 +11,11 @@ export const matchService = {
     return response.data;
   },
 
+  compareSchemes: async (schemeIds) => {
+    const response = await apiClient.post('/schemes/compare', { scheme_ids: schemeIds });
+    return response.data;
+  },
+
   toggleBookmark: async (schemeId) => {
     const response = await apiClient.post(`/schemes/${schemeId}/bookmark`);
     return response.data;

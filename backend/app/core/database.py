@@ -19,7 +19,9 @@ if "sqlite" in db_url:
 else:
     engine_kwargs["pool_pre_ping"] = True
     engine_kwargs["pool_size"] = 20
-    engine_kwargs["max_overflow"] = 0
+    engine_kwargs["max_overflow"] = 10
+    engine_kwargs["pool_recycle"] = 1800
+    engine_kwargs["pool_timeout"] = 30
 
 engine = create_engine(db_url, **engine_kwargs)
 

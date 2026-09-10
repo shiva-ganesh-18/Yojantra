@@ -127,3 +127,43 @@ def get_current_user_optional(
     user_id = uuid.UUID(sub_raw) if isinstance(sub_raw, str) else sub_raw
     return db.query(User).filter(User.id == user_id, User.is_active == True).first()
 
+
+def get_current_admin_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Ensure authenticated user holds verified admin or super_admin privileges."""
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: Administrator privileges required"
+        )
+    return current_user
+
+
+def get_current_partner_or_admin_user(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Ensure authenticated user holds verified partner_officer, nodal_officer, admin, or super_admin privileges."""
+    if current_user.role not in ["admin", "super_admin", "partner_officer", "nodal_officer"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: Partner Officer, Nodal Officer, or Administrator privileges required"
+        )
+    return current_user
+
+
+def check_resource_ownership(
+    resource_user_id: uuid.UUID,
+    current_user: User,
+    resource_type: str = "resource"
+) -> None:
+    """Enforce IDOR protection: only resource owner or privileged officer/admin can access."""
+    if resource_user_id != current_user.id and current_user.role not in [
+        "admin", "super_admin", "partner_officer", "nodal_officer"
+    ]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Not authorized: Access forbidden. You do not have permission to access this {resource_type}."
+        )
+
+

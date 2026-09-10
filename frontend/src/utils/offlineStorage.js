@@ -1,10 +1,12 @@
 /**
- * Offline Storage Utility for SchemeMatch AI
+ * Offline Storage Utility for Yojantra
  * Provides local caching of schemes, profile drafts, and network status tracking.
  */
 
-const SCHEMES_CACHE_KEY = 'schemematch_cached_schemes';
-const ONBOARDING_DRAFT_KEY = 'schemematch_onboarding_draft';
+const SCHEMES_CACHE_KEY = 'yojantra_cached_schemes';
+const LEGACY_SCHEMES_CACHE_KEY = 'schemematch_cached_schemes';
+const ONBOARDING_DRAFT_KEY = 'yojantra_onboarding_draft';
+const LEGACY_ONBOARDING_DRAFT_KEY = 'schemematch_onboarding_draft';
 
 export const offlineStorage = {
   // Check online status
@@ -25,7 +27,7 @@ export const offlineStorage = {
   // Get cached schemes
   getCachedSchemes: () => {
     try {
-      const raw = localStorage.getItem(SCHEMES_CACHE_KEY);
+      const raw = localStorage.getItem(SCHEMES_CACHE_KEY) || localStorage.getItem(LEGACY_SCHEMES_CACHE_KEY);
       if (!raw) return null;
       return JSON.parse(raw);
     } catch (e) {
@@ -48,7 +50,7 @@ export const offlineStorage = {
   // Retrieve onboarding draft
   getOnboardingDraft: () => {
     try {
-      const raw = localStorage.getItem(ONBOARDING_DRAFT_KEY);
+      const raw = localStorage.getItem(ONBOARDING_DRAFT_KEY) || localStorage.getItem(LEGACY_ONBOARDING_DRAFT_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       return null;
@@ -59,6 +61,7 @@ export const offlineStorage = {
   clearOnboardingDraft: () => {
     try {
       localStorage.removeItem(ONBOARDING_DRAFT_KEY);
+      localStorage.removeItem(LEGACY_ONBOARDING_DRAFT_KEY);
     } catch (_) {}
   },
 };
