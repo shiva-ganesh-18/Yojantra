@@ -48,90 +48,184 @@ class GovernmentIntegrationsService:
 
     def list_integration_statuses(self) -> List[IntegrationStatusResponse]:
         """Return connectivity and credential status for all official portals."""
+        active_settings = get_settings()
+
+        # 1. DigiLocker
+        digilocker_configured = bool(active_settings.DIGILOCKER_CLIENT_ID and active_settings.DIGILOCKER_CLIENT_SECRET)
+        digilocker_needed = []
+        if not active_settings.DIGILOCKER_CLIENT_ID:
+            digilocker_needed.append("DIGILOCKER_CLIENT_ID")
+        if not active_settings.DIGILOCKER_CLIENT_SECRET:
+            digilocker_needed.append("DIGILOCKER_CLIENT_SECRET")
+
+        # 2. UIDAI
+        uidai_configured = bool(active_settings.UIDAI_API_URL and (active_settings.UIDAI_LICENSE_KEY or active_settings.AADHAAR_API_KEY))
+        uidai_needed = []
+        if not active_settings.UIDAI_API_URL:
+            uidai_needed.append("UIDAI_API_URL")
+        if not (active_settings.UIDAI_LICENSE_KEY or active_settings.AADHAAR_API_KEY):
+            uidai_needed.append("UIDAI_LICENSE_KEY")
+
+        # 3. PAN
+        pan_configured = bool(active_settings.PAN_GATEWAY_URL and active_settings.PAN_API_KEY)
+        pan_needed = []
+        if not active_settings.PAN_GATEWAY_URL:
+            pan_needed.append("PAN_GATEWAY_URL")
+        if not active_settings.PAN_API_KEY:
+            pan_needed.append("PAN_API_KEY")
+
+        # 4. UDYAM
+        udyam_configured = bool(active_settings.UDYAM_GATEWAY_URL and active_settings.UDYAM_API_KEY)
+        udyam_needed = []
+        if not active_settings.UDYAM_GATEWAY_URL:
+            udyam_needed.append("UDYAM_GATEWAY_URL")
+        if not active_settings.UDYAM_API_KEY:
+            udyam_needed.append("UDYAM_API_KEY")
+
+        # 5. National Scheme Gazette
+        gov_sync_configured = bool(getattr(active_settings, "GOV_SYNC_ENDPOINT_URL", "") and active_settings.GOV_SYNC_API_KEY)
+        gov_sync_needed = []
+        if not getattr(active_settings, "GOV_SYNC_ENDPOINT_URL", ""):
+            gov_sync_needed.append("GOV_SYNC_ENDPOINT_URL")
+        if not active_settings.GOV_SYNC_API_KEY:
+            gov_sync_needed.append("GOV_SYNC_API_KEY")
+
+        # 6. CBS / Banking Gateway
+        cbs_url = active_settings.BANKING_GATEWAY_URL or getattr(active_settings, "CBS_GATEWAY_URL", "")
+        cbs_key = active_settings.BANKING_GATEWAY_API_KEY or getattr(active_settings, "CBS_API_KEY", "")
+        cbs_cert = active_settings.BANKING_GATEWAY_CERT_PATH
+        cbs_configured = bool(cbs_url and (cbs_key or cbs_cert))
+        cbs_needed = []
+        if not cbs_url:
+            cbs_needed.append("BANKING_GATEWAY_URL")
+        if not (cbs_key or cbs_cert):
+            cbs_needed.append("BANKING_GATEWAY_API_KEY")
+
+        # 7. PFMS / DBT
+        pfms_configured = bool(active_settings.PFMS_GATEWAY_URL and active_settings.PFMS_API_KEY)
+        pfms_needed = []
+        if not active_settings.PFMS_GATEWAY_URL:
+            pfms_needed.append("PFMS_GATEWAY_URL")
+        if not active_settings.PFMS_API_KEY:
+            pfms_needed.append("PFMS_API_KEY")
+
         return [
             IntegrationStatusResponse(
                 service_name="DigiLocker (National Digital Locker)",
-                is_available=bool(settings.DIGILOCKER_CLIENT_ID and settings.DIGILOCKER_CLIENT_SECRET),
-                status="connected" if (settings.DIGILOCKER_CLIENT_ID and settings.DIGILOCKER_CLIENT_SECRET) else "unconfigured",
-                auth_tier="Official MeitY DigiLocker Gateway (Connected)" if (settings.DIGILOCKER_CLIENT_ID and settings.DIGILOCKER_CLIENT_SECRET) else "Integration Framework / Sandbox Ready",
+                service_key="DigiLocker",
+                is_available=digilocker_configured,
+                status="connected" if digilocker_configured else "unconfigured",
+                integration_mode="LIVE" if digilocker_configured else "SANDBOX",
+                auth_tier="Official MeitY DigiLocker Gateway (Live Mode)" if digilocker_configured else "Integration Framework / Sandbox Ready (PRODUCTION_CREDENTIAL_REQUIRED)",
                 description="Secure digital certificate repository framework for Aadhaar, PAN, caste, and enterprise documents.",
-                official_portal_url="https://www.digilocker.gov.in"
+                official_portal_url="https://www.digilocker.gov.in",
+                production_credentials_needed=digilocker_needed,
+                production_credentials_configured=digilocker_configured
             ),
             IntegrationStatusResponse(
                 service_name="UIDAI Aadhaar Verification",
-                is_available=bool(settings.AADHAAR_API_KEY),
-                status="connected" if settings.AADHAAR_API_KEY else "unconfigured",
-                auth_tier="Licensed AUA/KUA Gateway (Connected)" if settings.AADHAAR_API_KEY else "Format Validation + Masking (DPDP Act 2023 Compliant)",
+                service_key="UIDAI",
+                is_available=uidai_configured,
+                status="connected" if uidai_configured else "unconfigured",
+                integration_mode="LIVE" if uidai_configured else "SANDBOX",
+                auth_tier="Licensed AUA/KUA Gateway (Production Mode)" if uidai_configured else "Format Validation + Masking (Sandbox / Validation Mode - DPDP Act 2023 Compliant)",
                 description="Privacy-preserving identity validation using last 4 digits and format validation + masking.",
-                official_portal_url="https://uidai.gov.in"
+                official_portal_url="https://uidai.gov.in",
+                production_credentials_needed=uidai_needed,
+                production_credentials_configured=uidai_configured
             ),
             IntegrationStatusResponse(
                 service_name="Income Tax Department PAN Verification",
-                is_available=bool(settings.PAN_API_KEY),
-                status="connected" if settings.PAN_API_KEY else "unconfigured",
-                auth_tier="Direct Production e-Tax API (Connected)" if settings.PAN_API_KEY else "Format Validation (Entity Category & Checksum)",
+                service_key="PAN",
+                is_available=pan_configured,
+                status="connected" if pan_configured else "unconfigured",
+                integration_mode="LIVE" if pan_configured else "SANDBOX",
+                auth_tier="Direct Production e-Tax API (Production Mode)" if pan_configured else "Format Validation (Sandbox / Validation Mode - Entity Category & Checksum)",
                 description="Permanent Account Number format validation and entity character categorization.",
-                official_portal_url="https://www.incometax.gov.in"
+                official_portal_url="https://www.incometax.gov.in",
+                production_credentials_needed=pan_needed,
+                production_credentials_configured=pan_configured
             ),
             IntegrationStatusResponse(
                 service_name="Ministry of MSME UDYAM Portal",
-                is_available=bool(settings.UDYAM_API_KEY),
-                status="connected" if settings.UDYAM_API_KEY else "unconfigured",
-                auth_tier="Official MSME UDYAM REST Gateway (Connected)" if settings.UDYAM_API_KEY else "Format/Structure Validation (State Code & Nomenclature)",
+                service_key="UDYAM",
+                is_available=udyam_configured,
+                status="connected" if udyam_configured else "unconfigured",
+                integration_mode="LIVE" if udyam_configured else "SANDBOX",
+                auth_tier="Official MSME UDYAM REST Gateway (Production Mode)" if udyam_configured else "Format/Structure Validation (Sandbox / Validation Mode - State Code & Nomenclature)",
                 description="Enterprise classification and UDYAM format/structure validation.",
-                official_portal_url="https://udyamregistration.gov.in"
+                official_portal_url="https://udyamregistration.gov.in",
+                production_credentials_needed=udyam_needed,
+                production_credentials_configured=udyam_configured
             ),
             IntegrationStatusResponse(
                 service_name="National Scheme Gazette & DBT Sync",
+                service_key="GOV_SYNC",
                 is_available=True,
                 status="connected",
-                auth_tier="Integration Framework (Open Nodal Gazette Data)",
+                integration_mode="LIVE" if gov_sync_configured else "SANDBOX",
+                auth_tier="Official Gazette Open Data Gateway (Live Sync)" if gov_sync_configured else "Integration Framework (Curated 63-Scheme Registry Active)",
                 description="Curated database of official subsidy rules, eligibility criteria, and interest subvention.",
-                official_portal_url="https://myscheme.gov.in"
+                official_portal_url="https://myscheme.gov.in",
+                production_credentials_needed=gov_sync_needed,
+                production_credentials_configured=gov_sync_configured
             ),
             IntegrationStatusResponse(
                 service_name="National Core Banking (CBS) & SCA Live Gateway",
-                is_available=bool(settings.BANKING_GATEWAY_URL and settings.BANKING_GATEWAY_API_KEY),
-                status="connected" if (settings.BANKING_GATEWAY_URL and settings.BANKING_GATEWAY_API_KEY) else "unconfigured",
-                auth_tier="Direct CBS / Partner API Gateway (Connected)" if (settings.BANKING_GATEWAY_URL and settings.BANKING_GATEWAY_API_KEY) else "Configuration-Ready / Metadata Fallback Active",
+                service_key="CBS",
+                is_available=cbs_configured,
+                status="connected" if cbs_configured else "unconfigured",
+                integration_mode="LIVE" if cbs_configured else "CONFIGURATION_READY",
+                auth_tier="Direct CBS / Partner API Gateway (Production Mode)" if cbs_configured else "Configuration-Ready / Metadata Fallback Active (PRODUCTION_CREDENTIAL_REQUIRED)",
                 description="Real-time fund utilization, lending capacity quotas, and NPA risk indicators for accredited lending partners.",
-                official_portal_url="https://financialservices.gov.in"
+                official_portal_url="https://financialservices.gov.in",
+                production_credentials_needed=cbs_needed,
+                production_credentials_configured=cbs_configured
             ),
             IntegrationStatusResponse(
                 service_name="Public Financial Management System (PFMS / DBT)",
-                is_available=bool(settings.PFMS_GATEWAY_URL and settings.PFMS_API_KEY),
-                status="connected" if (settings.PFMS_GATEWAY_URL and settings.PFMS_API_KEY) else "unconfigured",
-                auth_tier="Direct PFMS Gateway (Connected)" if (settings.PFMS_GATEWAY_URL and settings.PFMS_API_KEY) else "Configuration-Ready / Metadata Fallback Active",
+                service_key="PFMS",
+                is_available=pfms_configured,
+                status="connected" if pfms_configured else "unconfigured",
+                integration_mode="LIVE" if pfms_configured else "CONFIGURATION_READY",
+                auth_tier="Direct PFMS Gateway (Production Mode)" if pfms_configured else "Configuration-Ready / Metadata Fallback Active (PRODUCTION_CREDENTIAL_REQUIRED)",
                 description="Live disbursement tracking and settlement notification via PFMS / Aadhaar Payment Bridge (APB).",
-                official_portal_url="https://pfms.nic.in"
+                official_portal_url="https://pfms.nic.in",
+                production_credentials_needed=pfms_needed,
+                production_credentials_configured=pfms_configured
             ),
         ]
 
     def get_digilocker_auth_url(self, user_id: UUID) -> DigiLockerAuthURLResponse:
         """Generate official DigiLocker OAuth2 authorization redirect URL."""
-        client_id = settings.DIGILOCKER_CLIENT_ID or "SANDBOX_DIGILOCKER_YOJANTRA"
-        redirect_uri = settings.DIGILOCKER_REDIRECT_URI
-        state = hashlib.sha256(f"{user_id}_{settings.SECRET_KEY}".encode()).hexdigest()[:16]
+        active_settings = get_settings()
+        redirect_uri = active_settings.DIGILOCKER_REDIRECT_URI
+        state = hashlib.sha256(f"{user_id}_{active_settings.SECRET_KEY}".encode()).hexdigest()[:16]
 
-        if settings.DIGILOCKER_CLIENT_ID and settings.DIGILOCKER_CLIENT_SECRET:
+        if active_settings.DIGILOCKER_CLIENT_ID and active_settings.DIGILOCKER_CLIENT_SECRET:
+            client_id = active_settings.DIGILOCKER_CLIENT_ID
             auth_url = (
                 f"https://api.digitallocker.gov.in/public/oauth2/1/authorize"
                 f"?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&state={state}"
             )
             env = "Production (MeitY DigiLocker Gateway)"
+            mode = "LIVE"
         else:
             auth_url = f"/api/integrations/digilocker/sandbox-auth?state={state}"
             env = "Sandbox / Development Mock"
+            mode = "SANDBOX"
 
         return DigiLockerAuthURLResponse(
             auth_url=auth_url,
             state=state,
             environment=env,
-            disclaimer="DigiLocker access adheres to MeitY citizen consent and zero-knowledge digital certificate exchange."
+            disclaimer="DigiLocker access adheres to MeitY citizen consent and zero-knowledge digital certificate exchange.",
+            mode=mode
         )
 
     def verify_aadhaar_last_four(self, user: User, payload: AadhaarVerifyRequest) -> AadhaarVerifyResponse:
         """Verify applicant Aadhaar last 4 digits safely without storing full 12 digits."""
+        active_settings = get_settings()
         if not payload.consent_given:
             return AadhaarVerifyResponse(
                 success=False,
@@ -139,18 +233,79 @@ class GovernmentIntegrationsService:
                 masked_aadhaar="XXXX-XXXX-XXXX",
                 verification_tier="Consent Denied",
                 verified_at=datetime.now(timezone.utc),
-                message="Explicit citizen consent is mandatory under DPDP Act 2023 for Aadhaar validation."
+                message="Explicit citizen consent is mandatory under DPDP Act 2023 for Aadhaar validation.",
+                mode="SANDBOX"
+            )
+
+        if not re.match(r"^[0-9]{4}$", payload.aadhaar_last_four):
+            return AadhaarVerifyResponse(
+                success=False,
+                status="invalid_format",
+                masked_aadhaar="XXXX-XXXX-XXXX",
+                verification_tier="Format Validation Failed",
+                verified_at=datetime.now(timezone.utc),
+                message="Invalid Aadhaar last 4 digits format. Must contain exactly 4 numeric digits.",
+                mode="SANDBOX"
             )
 
         masked_aadhaar = f"XXXX-XXXX-{payload.aadhaar_last_four}"
 
-        # If live UIDAI AUA API key is configured
-        if settings.AADHAAR_API_KEY:
-            tier = "Official UIDAI AUA / KUA e-KYC Gateway (Connected)"
-            msg = f"Aadhaar VID confirmed via UIDAI AUA gateway for {user.full_name or 'Citizen'}."
-        else:
-            tier = "Format Validation + Masking (DPDP Act 2023 Compliant)"
-            msg = f"Aadhaar last 4 digits ({payload.aadhaar_last_four}) validated for format and masked for privacy."
+        is_production = bool(
+            active_settings.UIDAI_API_URL and (active_settings.UIDAI_LICENSE_KEY or active_settings.AADHAAR_API_KEY)
+        )
+
+        if is_production:
+            try:
+                import httpx
+                headers = {
+                    "X-AUA-Code": active_settings.UIDAI_AUA_CODE or "AUA_YOJANTRA",
+                    "X-License-Key": active_settings.UIDAI_LICENSE_KEY or active_settings.AADHAAR_API_KEY,
+                    "Content-Type": "application/json"
+                }
+                with httpx.Client(timeout=4.0) as client:
+                    resp = client.post(
+                        active_settings.UIDAI_API_URL,
+                        json={"vid_last_four": payload.aadhaar_last_four, "user_id": str(user.id)},
+                        headers=headers
+                    )
+                    if resp.status_code == 200:
+                        return AadhaarVerifyResponse(
+                            success=True,
+                            status="verified",
+                            masked_aadhaar=masked_aadhaar,
+                            verification_tier="Official UIDAI AUA / KUA e-KYC Gateway (Production Mode)",
+                            verified_at=datetime.now(timezone.utc),
+                            message=f"Aadhaar VID confirmed via live UIDAI AUA gateway for {user.full_name or 'Citizen'}.",
+                            mode="LIVE"
+                        )
+                    else:
+                        logger.warning("UIDAI Gateway returned non-200 status: %s", resp.status_code)
+                        return AadhaarVerifyResponse(
+                            success=False,
+                            status="upstream_gateway_error",
+                            masked_aadhaar=masked_aadhaar,
+                            verification_tier="Official UIDAI AUA / KUA Gateway (Production Error)",
+                            verified_at=datetime.now(timezone.utc),
+                            message=f"UIDAI production gateway returned status {resp.status_code}. Please retry or use sandbox validation.",
+                            mode="LIVE"
+                        )
+            except Exception as e:
+                logger.warning("Error connecting to production UIDAI gateway: %s", type(e).__name__)
+                return AadhaarVerifyResponse(
+                    success=False,
+                    status="gateway_unreachable",
+                    masked_aadhaar=masked_aadhaar,
+                    verification_tier="Official UIDAI AUA Gateway (Connection Error)",
+                    verified_at=datetime.now(timezone.utc),
+                    message=f"Production UIDAI AUA gateway unreachable ({type(e).__name__}). Please verify network credentials.",
+                    mode="LIVE"
+                )
+
+        # Sandbox / Format-Validation Mode
+        tier = "Format Validation + Masking (Sandbox / Validation Mode - DPDP Act 2023 Compliant)"
+        msg = f"Aadhaar last 4 digits ({payload.aadhaar_last_four}) validated for format and masked for privacy (Sandbox Mode)."
+        if active_settings.AADHAAR_API_KEY and not active_settings.UIDAI_API_URL:
+            msg += " Note: PRODUCTION_CREDENTIAL_REQUIRED: UIDAI_API_URL is required for live gateway dispatch."
 
         return AadhaarVerifyResponse(
             success=True,
@@ -158,11 +313,13 @@ class GovernmentIntegrationsService:
             masked_aadhaar=masked_aadhaar,
             verification_tier=tier,
             verified_at=datetime.now(timezone.utc),
-            message=msg
+            message=msg,
+            mode="SANDBOX"
         )
 
     def verify_pan(self, user: User, payload: PANVerifyRequest) -> PANVerifyResponse:
         """Verify PAN card format, entity category character, and checksum."""
+        active_settings = get_settings()
         if not payload.consent_given:
             return PANVerifyResponse(
                 success=False,
@@ -171,10 +328,23 @@ class GovernmentIntegrationsService:
                 category="Unknown",
                 verification_tier="Consent Denied",
                 verified_at=datetime.now(timezone.utc),
-                message="Citizen consent is required to verify PAN details."
+                message="Citizen consent is required to verify PAN details.",
+                mode="SANDBOX"
             )
 
-        pan = payload.pan_number.upper()
+        pan = payload.pan_number.upper().strip()
+        if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", pan):
+            return PANVerifyResponse(
+                success=False,
+                status="invalid_format",
+                masked_pan="XXXXX0000X",
+                category="Invalid",
+                verification_tier="Format Validation Failed",
+                verified_at=datetime.now(timezone.utc),
+                message="Invalid PAN structure. Must follow standard 10-character alphanumeric pattern.",
+                mode="SANDBOX"
+            )
+
         # 4th character indicates status: P (Individual), C (Company), H (HUF), F (Firm), T (Trust)
         entity_char = pan[3]
         categories = {
@@ -189,12 +359,62 @@ class GovernmentIntegrationsService:
         category = categories.get(entity_char, "Individual MSME Enterprise")
         masked_pan = f"{pan[:2]}XXX{pan[5:8]}{pan[9]}"
 
-        if settings.PAN_API_KEY:
-            tier = "Direct Production e-Tax API (Connected)"
-            msg = f"PAN {masked_pan} verified active in Income Tax database under {category}."
-        else:
-            tier = "Format Validation (Structure & Entity Character Compliant)"
-            msg = f"PAN {masked_pan} format validated for {category}."
+        is_production = bool(active_settings.PAN_GATEWAY_URL and active_settings.PAN_API_KEY)
+
+        if is_production:
+            try:
+                import httpx
+                headers = {
+                    "Authorization": f"Bearer {active_settings.PAN_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                with httpx.Client(timeout=4.0) as client:
+                    resp = client.post(
+                        active_settings.PAN_GATEWAY_URL,
+                        json={"pan": pan, "user_id": str(user.id)},
+                        headers=headers
+                    )
+                    if resp.status_code == 200:
+                        return PANVerifyResponse(
+                            success=True,
+                            status="verified",
+                            masked_pan=masked_pan,
+                            category=category,
+                            verification_tier="Direct Production e-Tax API (Production Mode)",
+                            verified_at=datetime.now(timezone.utc),
+                            message=f"PAN {masked_pan} verified active via live e-Tax gateway under {category}.",
+                            mode="LIVE"
+                        )
+                    else:
+                        logger.warning("PAN Gateway returned non-200 status: %s", resp.status_code)
+                        return PANVerifyResponse(
+                            success=False,
+                            status="upstream_gateway_error",
+                            masked_pan=masked_pan,
+                            category=category,
+                            verification_tier="Direct Production e-Tax API (Production Error)",
+                            verified_at=datetime.now(timezone.utc),
+                            message=f"PAN production gateway returned status {resp.status_code}. Verification could not be confirmed.",
+                            mode="LIVE"
+                        )
+            except Exception as e:
+                logger.warning("Error connecting to production PAN gateway: %s", type(e).__name__)
+                return PANVerifyResponse(
+                    success=False,
+                    status="gateway_unreachable",
+                    masked_pan=masked_pan,
+                    category=category,
+                    verification_tier="Direct Production e-Tax API (Connection Error)",
+                    verified_at=datetime.now(timezone.utc),
+                    message=f"Production e-Tax gateway unreachable ({type(e).__name__}). Please check gateway credentials.",
+                    mode="LIVE"
+                )
+
+        # Sandbox / Format-Validation Mode
+        tier = "Format Validation (Sandbox / Validation Mode - Structure & Entity Category Compliant)"
+        msg = f"PAN {masked_pan} format validated for {category} (Sandbox Mode)."
+        if active_settings.PAN_API_KEY and not active_settings.PAN_GATEWAY_URL:
+            msg += " Note: PRODUCTION_CREDENTIAL_REQUIRED: PAN_GATEWAY_URL is required for live e-Tax lookup."
 
         return PANVerifyResponse(
             success=True,
@@ -203,11 +423,13 @@ class GovernmentIntegrationsService:
             category=category,
             verification_tier=tier,
             verified_at=datetime.now(timezone.utc),
-            message=msg
+            message=msg,
+            mode="SANDBOX"
         )
 
     def verify_udyam(self, user: User, payload: UdyamVerifyRequest) -> UdyamVerifyResponse:
         """Verify UDYAM MSME registration number format and enterprise metadata."""
+        active_settings = get_settings()
         if not payload.consent_given:
             return UdyamVerifyResponse(
                 success=False,
@@ -215,10 +437,22 @@ class GovernmentIntegrationsService:
                 udyam_number=payload.udyam_number,
                 verification_tier="Consent Denied",
                 verified_at=datetime.now(timezone.utc),
-                message="Citizen consent is required for UDYAM registration lookup."
+                message="Citizen consent is required for UDYAM registration lookup.",
+                mode="SANDBOX"
             )
 
-        udyam = payload.udyam_number.upper()
+        udyam = payload.udyam_number.upper().strip()
+        if not re.match(r"^UDYAM-[A-Z]{2}-[0-9]{2}-[0-9]{7}$", udyam):
+            return UdyamVerifyResponse(
+                success=False,
+                status="invalid_format",
+                udyam_number=udyam,
+                verification_tier="Format Validation Failed",
+                verified_at=datetime.now(timezone.utc),
+                message="Invalid UDYAM number pattern. Must match 'UDYAM-XX-00-0000000'.",
+                mode="SANDBOX"
+            )
+
         state_code = udyam.split("-")[1]
         
         biz = user.business
@@ -233,12 +467,65 @@ class GovernmentIntegrationsService:
                 enterprise_type = "Micro"
         major_activity = biz.sector if biz and biz.sector else "Manufacturing & Services"
 
-        if settings.UDYAM_API_KEY:
-            tier = "Official Ministry of MSME UDYAM Portal REST API (Connected)"
-            msg = f"UDYAM registration {udyam} confirmed active in State of {state_code} for {enterprise_name}."
-        else:
-            tier = "Format/Structure Validation (State Code & Standard Nomenclature)"
-            msg = f"UDYAM number {udyam} format validated against standard nomenclature (State: {state_code})."
+        is_production = bool(active_settings.UDYAM_GATEWAY_URL and active_settings.UDYAM_API_KEY)
+
+        if is_production:
+            try:
+                import httpx
+                headers = {
+                    "Authorization": f"Bearer {active_settings.UDYAM_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                with httpx.Client(timeout=4.0) as client:
+                    resp = client.post(
+                        active_settings.UDYAM_GATEWAY_URL,
+                        json={"udyam_number": udyam, "user_id": str(user.id)},
+                        headers=headers
+                    )
+                    if resp.status_code == 200:
+                        if biz:
+                            biz.registration_type = "UDYAM"
+                            self.db.commit()
+                        return UdyamVerifyResponse(
+                            success=True,
+                            status="verified",
+                            udyam_number=udyam,
+                            enterprise_name=enterprise_name,
+                            enterprise_type=enterprise_type,
+                            major_activity=major_activity,
+                            verification_tier="Official Ministry of MSME UDYAM Portal REST API (Production Mode)",
+                            verified_at=datetime.now(timezone.utc),
+                            message=f"UDYAM registration {udyam} confirmed active in State of {state_code} for {enterprise_name}.",
+                            mode="LIVE"
+                        )
+                    else:
+                        logger.warning("UDYAM Gateway returned non-200 status: %s", resp.status_code)
+                        return UdyamVerifyResponse(
+                            success=False,
+                            status="upstream_gateway_error",
+                            udyam_number=udyam,
+                            verification_tier="Official Ministry of MSME UDYAM Portal (Production Error)",
+                            verified_at=datetime.now(timezone.utc),
+                            message=f"UDYAM production gateway returned status {resp.status_code}. Lookup could not be completed.",
+                            mode="LIVE"
+                        )
+            except Exception as e:
+                logger.warning("Error connecting to production UDYAM gateway: %s", type(e).__name__)
+                return UdyamVerifyResponse(
+                    success=False,
+                    status="gateway_unreachable",
+                    udyam_number=udyam,
+                    verification_tier="Official Ministry of MSME UDYAM Portal (Connection Error)",
+                    verified_at=datetime.now(timezone.utc),
+                    message=f"Production UDYAM gateway unreachable ({type(e).__name__}). Please check credentials.",
+                    mode="LIVE"
+                )
+
+        # Sandbox / Format-Validation Mode
+        tier = "Format/Structure Validation (Sandbox / Validation Mode - State Code & MSME Nomenclature)"
+        msg = f"UDYAM number {udyam} format validated against standard nomenclature (State: {state_code}, Sandbox Mode)."
+        if active_settings.UDYAM_API_KEY and not active_settings.UDYAM_GATEWAY_URL:
+            msg += " Note: PRODUCTION_CREDENTIAL_REQUIRED: UDYAM_GATEWAY_URL is required for live MSME portal verification."
 
         # Update business registration type if business exists
         if biz:
@@ -254,7 +541,8 @@ class GovernmentIntegrationsService:
             major_activity=major_activity,
             verification_tier=tier,
             verified_at=datetime.now(timezone.utc),
-            message=msg
+            message=msg,
+            mode="SANDBOX"
         )
 
     def sync_government_schemes(self) -> GovSchemeSyncResponse:

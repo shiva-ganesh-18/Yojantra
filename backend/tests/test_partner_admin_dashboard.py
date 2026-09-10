@@ -322,7 +322,7 @@ def test_partner_review_actions_state_transitions_and_mandatory_reasons(client, 
     notif = test_db.query(Notification).filter(
         Notification.user_id == f["citizen"].id,
         Notification.type == "application_status"
-    ).order_by(Notification.created_at.desc()).first()
+    ).order_by(Notification.created_at.desc(), Notification.id.desc()).first()
     assert notif is not None
     assert "lease deed" in notif.body
 

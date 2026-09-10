@@ -1,4 +1,5 @@
 """Advanced AI + RAG Intelligence service for Yojantra with verified government scheme knowledge and zero-PII grounding."""
+import logging
 import json
 import os
 import re
@@ -20,6 +21,8 @@ from app.schemas import (
     LoanEMICalculationResponse
 )
 from app.services.matching_engine import SchemeMatchingEngine
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """You are Yojantra AI, an intelligent, empathetic, and strictly factual GovTech advisory assistant for marginalized entrepreneurs and citizens in India.
@@ -66,6 +69,8 @@ class ChatService:
     def __init__(self, db: Session):
         self.db = db
         self.provider_name = "none"
+        self.last_error: Optional[str] = None
+        self.last_error_code: Optional[int] = None
         self._init_llm()
 
     def _init_llm(self):
@@ -85,21 +90,17 @@ class ChatService:
         self.openai_model = openai_model
         self.provider_name = "none"
 
-        # 1. Try Gemini if requested or auto
-        if (pref in ("auto", "gemini")) and gemini_key:
+        # Initialize standby models if credentials are configured
+        if gemini_key:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=gemini_key)
                 self.gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-                self.provider_name = "gemini"
-                return
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to initialize Gemini model: %s", type(e).__name__)
                 self.gemini_model = None
 
-        # 2. Try OpenAI if requested or auto fallback.
-        # Sends only the already-built verified scheme/RAG messages; the key
-        # stays server-side and is never logged, returned, or sent to clients.
-        if (pref in ("auto", "openai")) and openai_key:
+        if openai_key:
             try:
                 from langchain_openai import ChatOpenAI
                 self.llm = ChatOpenAI(
@@ -108,23 +109,32 @@ class ChatService:
                     api_key=openai_key,
                     timeout=5.0
                 )
-                self.provider_name = "openai"
-                return
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to initialize OpenAI client: %s", type(e).__name__)
                 self.llm = None
 
-        # 3. Fallback to Gemini if pref was openai but openai failed/absent
-        if pref == "openai" and not self.llm and gemini_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=gemini_key)
-                self.gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        # Route primary provider according to user preference
+        if pref == "openai":
+            if self.llm:
+                self.provider_name = "openai"
+            elif self.gemini_model:
                 self.provider_name = "gemini"
-                return
-            except Exception:
-                self.gemini_model = None
-
-        self.provider_name = "rule_based_fallback"
+            else:
+                self.provider_name = "rule_based_fallback"
+        elif pref == "gemini":
+            if self.gemini_model:
+                self.provider_name = "gemini"
+            elif self.llm:
+                self.provider_name = "openai"
+            else:
+                self.provider_name = "rule_based_fallback"
+        else:  # "auto" default preference
+            if self.gemini_model:
+                self.provider_name = "gemini"
+            elif self.llm:
+                self.provider_name = "openai"
+            else:
+                self.provider_name = "rule_based_fallback"
 
     def process_message(
         self, user_id: Optional[UUID], request: ChatMessageRequest
@@ -146,28 +156,77 @@ class ChatService:
         response_text = None
         intent = self._detect_intent(request.message)
 
-        # Execute provider with hierarchical fallback: Gemini -> OpenAI -> Deterministic Fallback
-        if self.gemini_model:
+        # Execute provider with hierarchical fallback: Primary -> Standby -> Deterministic Fallback
+        if self.provider_name == "openai" and self.llm:
             try:
-                response_text = self._get_gemini_response(messages)
-                source = "gemini_ai"
-            except Exception:
-                # Fallback to OpenAI if configured
-                if self.llm:
+                response_text = self._get_llm_response(messages)
+                source = "openai_ai"
+                self.last_error = None
+                self.last_error_code = None
+            except Exception as e:
+                err_str = str(e)
+                err_type = type(e).__name__
+                if "401" in err_str or "auth" in err_str.lower() or "Authentication" in err_type:
+                    self.last_error_code = 401
+                    self.last_error = "OpenAI Authentication Failed (HTTP 401: Invalid or Expired Key). Code is fixed, but a valid API key with available quota is required."
+                elif "429" in err_str or "rate" in err_str.lower() or "quota" in err_str.lower():
+                    self.last_error_code = 429
+                    self.last_error = "OpenAI Quota Exhausted or Rate Limit (HTTP 429). Code is fixed, but a valid API key with available quota is required."
+                elif "timeout" in err_str.lower() or "Timeout" in err_type:
+                    self.last_error_code = 408
+                    self.last_error = "OpenAI Request Timed Out (Exceeded 5.0s Limit)"
+                else:
+                    self.last_error_code = 500
+                    self.last_error = f"OpenAI Request Error: {err_type}"
+
+                logger.warning(
+                    "OpenAI API call failed (%s). Falling back safely without exposing credentials.",
+                    err_type
+                )
+
+                # Attempt standby Gemini fallback if available
+                if self.gemini_model:
                     try:
-                        response_text = self._get_llm_response(messages)
-                        source = "openai_ai"
-                    except Exception:
+                        response_text = self._get_gemini_response(messages)
+                        source = "gemini_ai"
+                    except Exception as ge:
+                        logger.warning("Gemini standby fallback failed (%s). Using deterministic RAG.", type(ge).__name__)
                         response_text = self._grounded_fallback_response(request.message, user, business, retrieved_schemes)
                         source = "rule_based_fallback"
                 else:
                     response_text = self._grounded_fallback_response(request.message, user, business, retrieved_schemes)
                     source = "rule_based_fallback"
+
+        elif self.provider_name == "gemini" and self.gemini_model:
+            try:
+                response_text = self._get_gemini_response(messages)
+                source = "gemini_ai"
+                self.last_error = None
+                self.last_error_code = None
+            except Exception as e:
+                err_type = type(e).__name__
+                logger.warning("Gemini API call failed (%s). Falling back safely.", err_type)
+                self.last_error = f"Gemini Request Error: {err_type}"
+                
+                # Attempt standby OpenAI fallback if available
+                if self.llm:
+                    try:
+                        response_text = self._get_llm_response(messages)
+                        source = "openai_ai"
+                    except Exception as oe:
+                        logger.warning("OpenAI standby fallback failed (%s). Using deterministic RAG.", type(oe).__name__)
+                        response_text = self._grounded_fallback_response(request.message, user, business, retrieved_schemes)
+                        source = "rule_based_fallback"
+                else:
+                    response_text = self._grounded_fallback_response(request.message, user, business, retrieved_schemes)
+                    source = "rule_based_fallback"
+
         elif self.llm:
             try:
                 response_text = self._get_llm_response(messages)
                 source = "openai_ai"
-            except Exception:
+            except Exception as e:
+                logger.warning("LLM API call failed (%s). Using deterministic RAG.", type(e).__name__)
                 response_text = self._grounded_fallback_response(request.message, user, business, retrieved_schemes)
                 source = "rule_based_fallback"
         else:
@@ -704,7 +763,8 @@ class ChatService:
     def get_provider_status(self) -> Dict[str, Any]:
         """Return provider configuration, live status, indexed schemes count, capabilities, and limitations."""
         active_count = self.db.query(Scheme).filter(Scheme.status == "active").count()
-        is_live = self.provider_name in ("gemini", "openai")
+        has_auth_quota_error = bool(self.last_error_code and self.last_error_code in (401, 429))
+        is_live = (self.provider_name in ("gemini", "openai")) and not has_auth_quota_error
         capabilities = [
             "Natural-Language Scheme Inquiries (English, Hindi, Regional)",
             "Demographic & Category-Specific Grounded Search",
@@ -722,7 +782,7 @@ class ChatService:
             "Final credit appraisal, interest margin, and collateral terms are determined by the financing bank",
             "Application submission must be completed on official portals or via accredited channel partners"
         ]
-        return {
+        status_dict = {
             "provider": self.provider_name,
             "is_ai_live": is_live,
             "model_name": "gemini-1.5-flash" if self.provider_name == "gemini" else (getattr(self, "openai_model", "gpt-4o-mini") if self.provider_name == "openai" else "local_deterministic_rag"),
@@ -732,8 +792,10 @@ class ChatService:
                 "Statutory Advisory: Yojantra AI is strictly informational and does not guarantee government approval or loan sanction."
             ),
             "capabilities": capabilities,
-            "limitations": limitations
+            "limitations": limitations,
+            "status_note": getattr(self, "last_error", None) or ("Operational" if is_live else "Operating on deterministic RAG fallback engine")
         }
+        return status_dict
 
     def _get_document_explanations_for_scheme(self, scheme: Scheme) -> List[Dict[str, str]]:
         """Map required scheme documents to official regulatory and banking purposes."""

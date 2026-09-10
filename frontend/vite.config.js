@@ -47,11 +47,33 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-ui': ['lucide-react'],
-          'vendor-firebase': ['firebase/app', 'firebase/auth'],
-          'vendor-query': ['react-query', 'axios', 'zustand'],
+        manualChunks(id) {
+          if (id.includes('node_modules/leaflet')) {
+            return 'vendor-leaflet';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-lucide';
+          }
+          if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+            return 'vendor-firebase';
+          }
+          if (
+            id.includes('node_modules/react-query') ||
+            id.includes('node_modules/axios') ||
+            id.includes('node_modules/zustand')
+          ) {
+            return 'vendor-query';
+          }
+          if (
+            id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router-dom')
+          ) {
+            return 'vendor-react';
+          }
+          if (id.includes('translations.js') || id.includes('translations')) {
+            return 'i18n-translations';
+          }
         }
       }
     },

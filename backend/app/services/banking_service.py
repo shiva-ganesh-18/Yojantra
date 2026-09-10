@@ -665,9 +665,9 @@ class BankingDataService:
         from app.core.config import get_settings
         settings = get_settings()
         
-        cbs_url = getattr(settings, "BANKING_GATEWAY_URL", "")
-        cbs_key = getattr(settings, "BANKING_GATEWAY_API_KEY", "")
-        auth_type = getattr(settings, "BANKING_GATEWAY_AUTH_TYPE", "bearer")
+        cbs_url = getattr(settings, "BANKING_GATEWAY_URL", "") or getattr(settings, "CBS_GATEWAY_URL", "")
+        cbs_key = getattr(settings, "BANKING_GATEWAY_API_KEY", "") or getattr(settings, "CBS_API_KEY", "")
+        auth_type = getattr(settings, "BANKING_GATEWAY_AUTH_TYPE", "") or getattr(settings, "CBS_AUTH_TYPE", "bearer")
         timeout_sec = float(getattr(settings, "BANKING_GATEWAY_TIMEOUT_SECONDS", 4.0))
         cert_path = getattr(settings, "BANKING_GATEWAY_CERT_PATH", "")
         key_path = getattr(settings, "BANKING_GATEWAY_KEY_PATH", "")

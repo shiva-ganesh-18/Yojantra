@@ -95,14 +95,36 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str = ""
     PINECONE_INDEX: str = "schemes"
 
-    # External APIs
+    # External APIs & Official Government Integrations
+    # 1. DigiLocker (MeitY)
     DIGILOCKER_CLIENT_ID: str = ""
     DIGILOCKER_CLIENT_SECRET: str = ""
     DIGILOCKER_REDIRECT_URI: str = "http://localhost:8001/api/integrations/digilocker/callback"
-    UDYAM_API_KEY: str = ""
+    DIGILOCKER_API_BASE_URL: str = "https://api.digitallocker.gov.in/public/oauth2/1"
+
+    # 2. UIDAI / Aadhaar (Licensed AUA/KUA Gateway)
     AADHAAR_API_KEY: str = ""
+    UIDAI_API_URL: str = ""
+    UIDAI_LICENSE_KEY: str = ""
+    UIDAI_AUA_CODE: str = ""
+    UIDAI_SUB_AUA_CODE: str = ""
+    UIDAI_CERT_PATH: str = ""
+
+    # 3. Income Tax Department PAN Verification
     PAN_API_KEY: str = ""
+    PAN_GATEWAY_URL: str = ""
+    PAN_SERVICE_PROVIDER: str = "income_tax_dept"  # "income_tax_dept", "nsdl", "utiitsl"
+
+    # 4. Ministry of MSME UDYAM Portal
+    UDYAM_API_KEY: str = ""
+    UDYAM_GATEWAY_URL: str = ""
+    UDYAM_CLIENT_ID: str = ""
+
+    # 5. National Scheme Gazette & Open DBT Sync
     GOV_SYNC_API_KEY: str = ""
+    GOV_SYNC_ENDPOINT_URL: str = ""
+
+    # 6. Core Banking System (CBS) & Channel Partner Live Gateway
     BANKING_GATEWAY_URL: str = ""
     BANKING_GATEWAY_API_KEY: str = ""
     BANKING_GATEWAY_AUTH_TYPE: str = "bearer"  # "bearer", "api_key", "mtls", "oauth2"
@@ -110,8 +132,12 @@ class Settings(BaseSettings):
     BANKING_GATEWAY_CERT_PATH: str = ""
     BANKING_GATEWAY_KEY_PATH: str = ""
     BANKING_GATEWAY_CA_PATH: str = ""
+    # Aliases for CBS naming convention
+    CBS_GATEWAY_URL: str = ""
+    CBS_API_KEY: str = ""
+    CBS_AUTH_TYPE: str = "bearer"
 
-    # PFMS / DBT Integration & Inbound Webhooks
+    # 7. PFMS / DBT Integration & Inbound Webhooks
     PFMS_GATEWAY_URL: str = ""
     PFMS_API_KEY: str = ""
     PFMS_AUTH_TYPE: str = "bearer"  # "bearer", "api_key", "mtls"

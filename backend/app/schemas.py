@@ -739,7 +739,7 @@ class ChatMessageResponse(BaseModel):
 
 
 class ChatStatusResponse(BaseModel):
-    model_config = {"protected_namespaces": ()}
+    model_config = {"protected_namespaces": (), "extra": "ignore"}
     provider: str
     is_ai_live: bool
     model_name: Optional[str] = None
@@ -750,6 +750,7 @@ class ChatStatusResponse(BaseModel):
     )
     capabilities: List[str] = Field(default_factory=list)
     limitations: List[str] = Field(default_factory=list)
+    status_note: Optional[str] = None
 
 
 class EligibilityExplanationRequest(BaseModel):
@@ -945,11 +946,15 @@ class InstitutionRequestResponse(BaseModel):
 
 class IntegrationStatusResponse(BaseModel):
     service_name: str
+    service_key: Optional[str] = None  # "UIDAI", "PAN", "UDYAM", "DigiLocker", "CBS", "PFMS", "GOV_SYNC"
     is_available: bool
     status: str  # "connected" | "mock_sandbox" | "unconfigured"
+    integration_mode: Optional[str] = "SANDBOX"  # "SANDBOX" | "LIVE" | "CONFIGURATION_READY" | "NOT_CONFIGURED"
     auth_tier: str
     description: str
     official_portal_url: Optional[str] = None
+    production_credentials_needed: List[str] = Field(default_factory=list)
+    production_credentials_configured: bool = False
 
 
 class DigiLockerAuthURLResponse(BaseModel):
@@ -957,6 +962,7 @@ class DigiLockerAuthURLResponse(BaseModel):
     state: str
     environment: str
     disclaimer: str
+    mode: Optional[str] = "SANDBOX"
 
 
 class DigiLockerPullRequest(BaseModel):
@@ -976,6 +982,7 @@ class AadhaarVerifyResponse(BaseModel):
     verification_tier: str
     verified_at: datetime
     message: str
+    mode: Optional[str] = "SANDBOX"
 
 
 class PANVerifyRequest(BaseModel):
@@ -991,6 +998,7 @@ class PANVerifyResponse(BaseModel):
     verification_tier: str
     verified_at: datetime
     message: str
+    mode: Optional[str] = "SANDBOX"
 
 
 class UdyamVerifyRequest(BaseModel):
@@ -1008,6 +1016,7 @@ class UdyamVerifyResponse(BaseModel):
     verification_tier: str
     verified_at: datetime
     message: str
+    mode: Optional[str] = "SANDBOX"
 
 
 class GovSchemeSyncResponse(BaseModel):
