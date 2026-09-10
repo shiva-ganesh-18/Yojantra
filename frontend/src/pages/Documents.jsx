@@ -23,6 +23,7 @@ export default function Documents() {
   const [autoFillError, setAutoFillError] = useState(null);
   const [autoFillLoading, setAutoFillLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   // Fetch schemes list for dynamic scheme checklist selector
   const { data: schemesData } = useQuery('schemes_dropdown', async () => {
@@ -83,6 +84,18 @@ export default function Documents() {
       } finally {
         setDeletingId(null);
       }
+    }
+  };
+
+  const handleDownload = async (docId, defaultName) => {
+    setDownloadingId(docId);
+    try {
+      await documentService.downloadDocument(docId, defaultName);
+    } catch (e) {
+      console.error(e);
+      alert(e?.message || 'Failed to download document. Please try again.');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -391,6 +404,20 @@ export default function Documents() {
                   }`}>
                     {doc.verification_status === 'verified' ? '✓ OCR Parsed' : '⏳ Pending'}
                   </span>
+
+                  <button
+                    onClick={() => handleDownload(doc.id, `${doc.doc_type || 'document'}.${doc.file_format || 'pdf'}`)}
+                    disabled={downloadingId === doc.id}
+                    aria-label="Download document"
+                    title="Download document"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-gov-navy-950 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                  >
+                    {downloadingId === doc.id ? (
+                      <span className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : (
+                      <Download size={16} />
+                    )}
+                  </button>
 
                   <button
                     onClick={() => handleDelete(doc.id)}

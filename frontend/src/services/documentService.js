@@ -34,6 +34,23 @@ export const documentService = {
     const response = await apiClient.delete(`/documents/${docId}`);
     return response.data;
   },
+
+  downloadDocument: async (docId, filename = 'document') => {
+    const response = await apiClient.get(`/documents/${docId}/download`, {
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], {
+      type: response.headers['content-type'] || 'application/octet-stream',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 export default documentService;
