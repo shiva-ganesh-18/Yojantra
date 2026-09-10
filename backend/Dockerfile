@@ -5,7 +5,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y     gcc     libpq-dev     tesseract-ocr     tesseract-ocr-hin     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# BuildKit pip cache: survives per-layer retries so flaky registries resume
+# instead of re-downloading. Zero runtime effect (wheels still installed).
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 COPY . .
 

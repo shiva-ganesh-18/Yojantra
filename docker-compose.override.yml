@@ -25,7 +25,6 @@ services:
       - "7687:7687"
     environment:
       NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-schemematch}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-schemematch}
 
   redis:
     ports:

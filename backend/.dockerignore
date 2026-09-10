@@ -1,0 +1,15 @@
+# Keep the production image lean and free of local/dev artifacts.
+# (Zero runtime effect: the app reads all configuration from container env.)
+.venv
+.venv2
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+*.db
+*.sqlite*
+*.sqlite3
+.env
+node_modules
+.git

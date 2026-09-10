@@ -35,14 +35,16 @@ services:
   neo4j:
     image: neo4j:5-community
     restart: unless-stopped
+    # NOTE: only NEO4J_AUTH may be passed here. The Neo4j entrypoint maps any
+    # NEO4J_* variable to a config key, so an extra NEO4J_PASSWORD variable
+    # becomes an invalid `PASSWORD` setting and aborts the boot.
     environment:
       NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
       NEO4J_PLUGINS: '["apoc"]'
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: [ "CMD-SHELL", "cypher-shell -p \"$$NEO4J_PASSWORD\" \"RETURN 1\"" ]
+      test: [ "CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7474/ || exit 1" ]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -94,7 +96,7 @@ services:
       - FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL:-}
       - FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY:-}
       - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH:-}
-      - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=${FIREBASE_SERVICE_ACCOUNT_PATH:-./firebase-service-account.json}
       - FIREBASE_APP_CHECK_ENFORCEMENT=${FIREBASE_APP_CHECK_ENFORCEMENT:-false}
       - FIREBASE_APP_CHECK_DEBUG_TOKEN=${FIREBASE_APP_CHECK_DEBUG_TOKEN:-}
       - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
@@ -135,6 +137,10 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
+      # Real Firebase service-account key (git-ignored, never committed).
+      # Mounted read-only for Google ID-token verification; the file must
+      # exist on the deploy host or the backend container will not start.
+      - ./backend/firebase-service-account.json:/app/firebase-service-account.json:ro
     healthcheck:
       test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)\"" ]
       interval: 15s
