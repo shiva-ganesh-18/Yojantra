@@ -11,6 +11,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 COPY . .
 
-# Production startup configuration (multi-worker, no --reload).
+# Production startup (multi-worker, no --reload).
+# Listens on Render's $PORT when present, otherwise 8001 locally.
 # Local development overrides the command with --reload via docker-compose.override.yml.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001} --workers 2"]

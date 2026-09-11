@@ -1,0 +1,57 @@
+# Yojantra backend — Render Blueprint.
+# Dashboard: New > Blueprint > select repo > this file.
+# Secrets are NEVER committed here: set them in the Render dashboard
+# (sync: false). See backend/.env.example for the full variable reference.
+services:
+  - type: web
+    name: yojantra-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    plan: starter
+    autoDeploy: true
+    # Render injects PORT automatically; backend Dockerfile listens on ${PORT:-8001}.
+    preDeployCommand: "alembic upgrade head"
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: ALLOW_DEV_OTP
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # production PostgreSQL connection string (psycopg2). No localhost.
+      - key: REDIS_URL
+        sync: false # production Redis URL, e.g. rediss://:...@...:6379/0. No localhost.
+      - key: NEO4J_URI
+        sync: false # production Neo4j, e.g. neo4j+s://xxxx.databases.neo4j.io
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false # exact production frontend origin(s), e.g. https://<app>.vercel.app
+      - key: AI_PROVIDER
+        value: openai
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      # If Firebase Admin credentials are set, App Check enforcement MUST be true
+      # (backend/app/core/config.py production guard), and the frontend needs
+      # VITE_FIREBASE_APP_CHECK_SITE_KEY (reCAPTCHA v3/Enterprise).
+      - key: FIREBASE_APP_CHECK_ENFORCEMENT
+        value: "false"
+      - key: FIREBASE_APP_CHECK_DEBUG_TOKEN
+        sync: false
